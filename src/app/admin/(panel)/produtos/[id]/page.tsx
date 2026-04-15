@@ -1,14 +1,36 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ProductForm } from "@/components/ProductForm";
-import { mockProducts } from "@/lib/mock-products";
+import {
+  getLocalProductById,
+  PRODUCTS_UPDATED_EVENT,
+} from "@/lib/local-products";
+import type { ProductRow } from "@/types/database";
 
-type Props = { params: Promise<{ id: string }> };
+export default function EditarProdutoPage() {
+  const params = useParams<{ id: string }>();
+  const [product, setProduct] = useState<ProductRow | null>(null);
 
-export default async function EditarProdutoPage({ params }: Props) {
-  const { id } = await params;
-  const product = mockProducts.find((item) => item.id === id);
+  useEffect(() => {
+    const refreshProduct = () => {
+      setProduct(getLocalProductById(params.id) ?? null);
+    };
 
-  if (!product) notFound();
+    refreshProduct();
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, refreshProduct);
+    window.addEventListener("storage", refreshProduct);
+
+    return () => {
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, refreshProduct);
+      window.removeEventListener("storage", refreshProduct);
+    };
+  }, [params.id]);
+
+  if (!product) {
+    return <p className="text-stone-600">Produto não encontrado.</p>;
+  }
 
   return (
     <div>

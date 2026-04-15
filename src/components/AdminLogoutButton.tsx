@@ -1,14 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { ADMIN_SESSION_KEY } from "@/lib/admin-auth";
 
 export function AdminLogoutButton() {
   const router = useRouter();
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+    }
     router.push("/admin/login");
     router.refresh();
   }

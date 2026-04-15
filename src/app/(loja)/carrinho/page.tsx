@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "@/context/cart-context";
 import { formatBRL } from "@/lib/money";
+import { getDisplayImage } from "@/lib/product-images";
 
 export default function CarrinhoPage() {
   const { lines, setQuantity, remove, totalCents, itemCount } = useCart();
@@ -30,21 +31,19 @@ export default function CarrinhoPage() {
         {itemCount} {itemCount === 1 ? "item" : "itens"}
       </p>
       <ul className="mt-8 divide-y divide-stone-200 border-y border-stone-200">
-        {lines.map(({ product, quantity }) => (
+        {lines.map(({ lineId, product, quantity, size, color }) => (
           <li
-            key={product.id}
+            key={lineId}
             className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center"
           >
             <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-              {product.image_url ? (
-                <Image
-                  src={product.image_url}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="128px"
-                />
-              ) : null}
+              <Image
+                src={getDisplayImage(product)}
+                alt={product.name}
+                fill
+                className="object-cover"
+                sizes="128px"
+              />
             </div>
             <div className="min-w-0 flex-1">
               <Link
@@ -56,25 +55,29 @@ export default function CarrinhoPage() {
               <p className="text-sm text-stone-600">
                 {formatBRL(product.price_cents)} cada
               </p>
+              <p className="text-xs text-stone-500">
+                {size ? `Numeração: ${size}` : "Numeração não selecionada"} ·{" "}
+                {color ? `Cor: ${color}` : "Cor não selecionada"}
+              </p>
             </div>
             <div className="flex items-center gap-3">
-              <label className="sr-only" htmlFor={`q-${product.id}`}>
+              <label className="sr-only" htmlFor={`q-${lineId}`}>
                 Quantidade
               </label>
               <input
-                id={`q-${product.id}`}
+                id={`q-${lineId}`}
                 type="number"
                 min={1}
                 max={product.stock}
                 value={quantity}
                 onChange={(e) =>
-                  setQuantity(product.id, Number.parseInt(e.target.value, 10) || 1)
+                  setQuantity(lineId, Number.parseInt(e.target.value, 10) || 1)
                 }
                 className="w-20 rounded-lg border border-stone-300 px-2 py-1.5 text-center text-sm"
               />
               <button
                 type="button"
-                onClick={() => remove(product.id)}
+                onClick={() => remove(lineId)}
                 className="text-sm text-red-700 hover:underline"
               >
                 Remover

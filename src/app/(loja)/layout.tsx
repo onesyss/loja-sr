@@ -9,7 +9,7 @@ export default function LojaLayout({
 }) {
   return (
     <CartProvider>
-      <div className="flex min-h-full flex-1 flex-col bg-white">
+      <div className="flex min-h-screen flex-1 flex-col">
         <StoreHeader />
         <div className="flex-1">{children}</div>
         <StoreFooter />

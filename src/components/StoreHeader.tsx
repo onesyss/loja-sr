@@ -1,32 +1,27 @@
 import Link from "next/link";
-import { BRAND, whatsappHref } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 import { CartLink } from "./CartLink";
 
 export function StoreHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-violet-100 bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
         <Link href="/" className="min-w-0">
-          <span className="block text-lg font-bold tracking-wide text-violet-600">
+          <span className="block text-lg font-bold tracking-wide text-violet-700">
             {BRAND.name}
           </span>
-          <span className="block text-xs font-medium text-violet-600/85">
+          <span className="block text-xs font-medium text-violet-700/80">
             {BRAND.tagline}
           </span>
         </Link>
         <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-stone-700 sm:gap-6">
-          <Link href="/" className="transition-colors hover:text-violet-600">
+          <Link
+            href="/"
+            className="rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 ring-violet-100 transition hover:text-violet-600"
+          >
             Loja
           </Link>
           <CartLink />
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-violet-200 px-3 py-1.5 text-violet-600 transition hover:bg-violet-50"
-          >
-            WhatsApp
-          </a>
         </nav>
       </div>
     </header>

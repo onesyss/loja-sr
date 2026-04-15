@@ -1,19 +1,19 @@
 "use client";
 
-import { useCart } from "@/context/cart-context";
+import { useRouter } from "next/navigation";
 import type { ProductRow } from "@/types/database";
 
 export function AddToCartButton({ product }: { product: ProductRow }) {
-  const { add } = useCart();
+  const router = useRouter();
 
   return (
     <button
       type="button"
-      onClick={() => add(product, 1)}
+      onClick={() => router.push(`/produtos/${product.slug}`)}
       disabled={product.stock < 1}
-      className="mt-auto w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+      className="mt-auto w-full rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:from-violet-700 hover:to-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {product.stock < 1 ? "Indisponível" : "Adicionar ao carrinho"}
+      {product.stock < 1 ? "Indisponível" : "Compre agora"}
     </button>
   );
 }

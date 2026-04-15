@@ -11,15 +11,22 @@ import {
 import type { ProductRow } from "@/types/database";
 
 export interface CartLine {
+  lineId: string;
   product: ProductRow;
   quantity: number;
+  size?: number;
+  color?: string;
 }
 
 interface CartContextValue {
   lines: CartLine[];
-  add: (product: ProductRow, quantity?: number) => void;
-  remove: (productId: string) => void;
-  setQuantity: (productId: string, quantity: number) => void;
+  add: (
+    product: ProductRow,
+    quantity?: number,
+    options?: { size?: number; color?: string },
+  ) => void;
+  remove: (lineId: string) => void;
+  setQuantity: (lineId: string, quantity: number) => void;
   clear: () => void;
   totalCents: number;
   itemCount: number;
@@ -35,7 +42,16 @@ function loadLines(): CartLine[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as CartLine[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((line) => line?.product?.id)
+      .map((line) => ({
+        ...line,
+        lineId:
+          line.lineId ??
+          `${line.product.id}-${line.size ?? "na"}-${line.color ?? "na"}`,
+      }));
   } catch {
     return [];
   }
@@ -55,11 +71,26 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
   }, [lines, hydrated]);
 
-  const add = useCallback((product: ProductRow, quantity = 1) => {
+  const add = useCallback(
+    (
+      product: ProductRow,
+      quantity = 1,
+      options?: { size?: number; color?: string },
+    ) => {
+      const lineId = `${product.id}-${options?.size ?? "na"}-${options?.color ?? "na"}`;
     setLines((prev) => {
-      const idx = prev.findIndex((l) => l.product.id === product.id);
+      const idx = prev.findIndex((l) => l.lineId === lineId);
       if (idx === -1) {
-        return [...prev, { product, quantity: Math.max(1, quantity) }];
+        return [
+          ...prev,
+          {
+            lineId,
+            product,
+            quantity: Math.max(1, quantity),
+            size: options?.size,
+            color: options?.color,
+          },
+        ];
       }
       const next = [...prev];
       next[idx] = {
@@ -68,20 +99,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       };
       return next;
     });
+    },
+    [],
+  );
+
+  const remove = useCallback((lineId: string) => {
+    setLines((prev) => prev.filter((l) => l.lineId !== lineId));
   }, []);
 
-  const remove = useCallback((productId: string) => {
-    setLines((prev) => prev.filter((l) => l.product.id !== productId));
-  }, []);
-
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((lineId: string, quantity: number) => {
     if (quantity < 1) {
-      setLines((prev) => prev.filter((l) => l.product.id !== productId));
+      setLines((prev) => prev.filter((l) => l.lineId !== lineId));
       return;
     }
     setLines((prev) =>
       prev.map((l) =>
-        l.product.id === productId ? { ...l, quantity } : l,
+        l.lineId === lineId ? { ...l, quantity } : l,
       ),
     );
   }, []);

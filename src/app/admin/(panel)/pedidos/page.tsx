@@ -1,5 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { formatBRL } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import type { OrderRow } from "@/types/database";
 
 const statusLabel: Record<string, string> = {
   pending: "Pendente",
@@ -8,26 +11,32 @@ const statusLabel: Record<string, string> = {
   failed: "Falhou",
 };
 
-export default async function AdminPedidosPage() {
-  const supabase = await createClient();
-  const { data: orders, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("created_at", { ascending: false });
+const ORDERS_STORAGE_KEY = "sr-calcados-orders";
 
-  if (error) {
-    return (
-      <p className="text-red-700">
-        Erro ao carregar pedidos. Confira as policies RLS para admin.
-      </p>
-    );
+function getLocalOrders(): OrderRow[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as OrderRow[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
+}
+
+export default function AdminPedidosPage() {
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+
+  useEffect(() => {
+    setOrders(getLocalOrders());
+  }, []);
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-stone-900">Pedidos</h1>
       <p className="mt-1 text-stone-600">
-        Status atualizado automaticamente pelo webhook do Mercado Pago.
+        Em modo local, pedidos são lidos do localStorage.
       </p>
       {!orders?.length ? (
         <p className="mt-8 text-stone-600">Nenhum pedido ainda.</p>

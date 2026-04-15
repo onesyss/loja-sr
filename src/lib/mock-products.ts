@@ -5,6 +5,7 @@ const now = new Date().toISOString();
 export const mockProducts: ProductRow[] = [
   {
     id: "mock-1",
+    code: "SR-001",
     name: "Tênis Urbano Confort",
     slug: "tenis-urbano-confort",
     description:
@@ -18,6 +19,7 @@ export const mockProducts: ProductRow[] = [
   },
   {
     id: "mock-2",
+    code: "SR-002",
     name: "Sandália Elegance Salto Médio",
     slug: "sandalia-elegance-salto-medio",
     description:
@@ -31,6 +33,7 @@ export const mockProducts: ProductRow[] = [
   },
   {
     id: "mock-3",
+    code: "SR-003",
     name: "Mocassim Casual Masculino",
     slug: "mocassim-casual-masculino",
     description:
@@ -44,6 +47,7 @@ export const mockProducts: ProductRow[] = [
   },
   {
     id: "mock-4",
+    code: "SR-004",
     name: "Bota Adventure Couro",
     slug: "bota-adventure-couro",
     description:
@@ -57,6 +61,7 @@ export const mockProducts: ProductRow[] = [
   },
   {
     id: "mock-5",
+    code: "SR-005",
     name: "Chinelo Slide Flex",
     slug: "chinelo-slide-flex",
     description:
@@ -70,6 +75,7 @@ export const mockProducts: ProductRow[] = [
   },
   {
     id: "mock-6",
+    code: "SR-006",
     name: "Sapato Social Premium",
     slug: "sapato-social-premium",
     description:
@@ -77,6 +83,26 @@ export const mockProducts: ProductRow[] = [
     price_cents: 21990,
     stock: 9,
     image_url: null,
+    active: true,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "mock-7",
+    code: "SR-007",
+    name: "Sandália Melissa Flow",
+    slug: "sandalia-melissa-flow",
+    description:
+      "Modelo Melissa com design moderno, confortável e ideal para o dia a dia.",
+    price_cents: 17990,
+    discount_percent: 8,
+    max_installments: 5,
+    stock: 10,
+    image_url: null,
+    audience: "feminino",
+    style: "casual",
+    available_sizes: [33, 34, 35, 36, 37, 38, 39],
+    available_colors: ["Preto", "Rosa", "Nude"],
     active: true,
     created_at: now,
     updated_at: now,

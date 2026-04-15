@@ -1,11 +1,35 @@
-import Link from "next/link";
-import { formatBRL } from "@/lib/money";
-import { mockProducts } from "@/lib/mock-products";
+ "use client";
 
-export default async function AdminProdutosPage() {
-  const products = [...mockProducts].sort((a, b) =>
-    a.created_at < b.created_at ? 1 : -1,
-  );
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { formatBRL } from "@/lib/money";
+import {
+  getLocalProducts,
+  PRODUCTS_UPDATED_EVENT,
+} from "@/lib/local-products";
+import type { ProductRow } from "@/types/database";
+
+export default function AdminProdutosPage() {
+  const [products, setProducts] = useState<ProductRow[]>([]);
+
+  useEffect(() => {
+    const refreshProducts = () => {
+      setProducts(
+        [...getLocalProducts()].sort((a, b) =>
+        a.created_at < b.created_at ? 1 : -1,
+      ),
+      );
+    };
+
+    refreshProducts();
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
+    window.addEventListener("storage", refreshProducts);
+
+    return () => {
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
+      window.removeEventListener("storage", refreshProducts);
+    };
+  }, []);
 
   return (
     <div>

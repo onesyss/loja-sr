@@ -1,20 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   ADMIN_SESSION_KEY,
-  readAdminUser,
+  writeAdminUser,
 } from "@/lib/admin-auth";
 
-export default function AdminLoginPage() {
+export default function AdminCadastroPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") ?? "/admin";
-
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,48 +21,58 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    if (!email.trim() || !password.trim()) {
-      setError("Informe e-mail e senha.");
+
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setError("Preencha nome, e-mail e senha.");
+      setLoading(false);
+      return;
+    }
+    if (password.length < 4) {
+      setError("Use uma senha com pelo menos 4 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("As senhas não conferem.");
       setLoading(false);
       return;
     }
 
-    const adminUser = readAdminUser();
-    if (!adminUser) {
-      setError("Nenhum admin cadastrado. Clique em 'Criar conta admin'.");
-      setLoading(false);
-      return;
-    }
-    if (
-      adminUser.email.toLowerCase() !== email.trim().toLowerCase() ||
-      adminUser.password !== password
-    ) {
-      setError("E-mail ou senha inválidos.");
-      setLoading(false);
-      return;
-    }
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        ADMIN_SESSION_KEY,
-        JSON.stringify({
-          email: adminUser.email,
-          loggedAt: new Date().toISOString(),
-        }),
-      );
-    }
-
+    writeAdminUser({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    localStorage.setItem(
+      ADMIN_SESSION_KEY,
+      JSON.stringify({
+        email: email.trim().toLowerCase(),
+        loggedAt: new Date().toISOString(),
+      }),
+    );
     setLoading(false);
-    router.push(redirect);
+    router.push("/admin");
     router.refresh();
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-stone-100 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold text-stone-900">Entrar · Admin</h1>
-        <p className="mt-1 text-sm text-violet-600">SR CALÇADOS · Moda a seus pés</p>
+        <h1 className="text-xl font-semibold text-stone-900">Cadastro · Admin</h1>
+        <p className="mt-1 text-sm text-violet-600">Crie seu acesso ao painel</p>
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700" htmlFor="name">
+              Nome
+            </label>
+            <input
+              id="name"
+              required
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-stone-700" htmlFor="email">
               E-mail
@@ -71,7 +80,6 @@ export default function AdminLoginPage() {
             <input
               id="email"
               type="email"
-              autoComplete="email"
               required
               className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
               value={email}
@@ -85,11 +93,26 @@ export default function AdminLoginPage() {
             <input
               id="password"
               type="password"
-              autoComplete="current-password"
               required
               className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div>
+            <label
+              className="block text-sm font-medium text-stone-700"
+              htmlFor="confirm_password"
+            >
+              Confirmar senha
+            </label>
+            <input
+              id="confirm_password"
+              type="password"
+              required
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
           {error ? (
@@ -102,17 +125,14 @@ export default function AdminLoginPage() {
             disabled={loading}
             className="w-full rounded-xl bg-violet-600 py-2.5 font-medium text-white hover:bg-violet-700 disabled:opacity-60"
           >
-            {loading ? "Entrando…" : "Entrar"}
+            {loading ? "Salvando..." : "Criar conta admin"}
           </button>
         </form>
         <Link
-          href="/admin/cadastro"
-          className="mt-4 block text-center text-sm font-medium text-violet-600 hover:underline"
+          href="/admin/login"
+          className="mt-6 block text-center text-sm text-stone-500 hover:text-violet-600"
         >
-          Criar conta admin
-        </Link>
-        <Link href="/" className="mt-6 block text-center text-sm text-stone-500 hover:text-violet-600">
-          ← Voltar à loja
+          Já tenho conta
         </Link>
       </div>
     </main>
