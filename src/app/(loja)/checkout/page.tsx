@@ -6,6 +6,7 @@ import { BRAND, whatsappHref } from "@/lib/brand";
 import { formatBRL } from "@/lib/money";
 import { getDisplayImage } from "@/lib/product-images";
 import { productRequiresBirthDate } from "@/lib/melissa-product";
+import { saveWhatsappOrder } from "@/lib/whatsapp-orders";
 
 const COUPONS: Record<string, { type: "percent" | "fixed"; value: number }> = {
   BEMVINDO10: { type: "percent", value: 10 },
@@ -94,6 +95,14 @@ export default function CheckoutPage() {
       `*Forma de pagamento:* ${paymentLabel}\n` +
       `*Total:* ${formatBRL(finalTotalCents)}\n\n` +
       `Pode me enviar as instruções para pagamento, por favor?`;
+
+    saveWhatsappOrder({
+      customer_name: form.customer_name.trim(),
+      customer_email: form.customer_email.trim(),
+      customer_phone: form.customer_phone.trim() || null,
+      total_cents: finalTotalCents,
+      whatsapp_message: message,
+    });
 
     const targetUrl = `${whatsappHref}?text=${encodeURIComponent(message)}`;
     window.open(targetUrl, "_blank", "noopener,noreferrer");

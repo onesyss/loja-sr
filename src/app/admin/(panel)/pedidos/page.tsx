@@ -1,89 +1,96 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatBRL } from "@/lib/money";
-import type { OrderRow } from "@/types/database";
-
-const statusLabel: Record<string, string> = {
-  pending: "Pendente",
-  paid: "Pago",
-  cancelled: "Cancelado",
-  failed: "Falhou",
-};
-
-const ORDERS_STORAGE_KEY = "sr-calcados-orders";
-
-function getLocalOrders(): OrderRow[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as OrderRow[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import {
+  deleteWhatsappOrder,
+  getWhatsappOrders,
+  WHATSAPP_ORDERS_UPDATED,
+} from "@/lib/whatsapp-orders";
+import type { WhatsAppOrderRecord } from "@/types/database";
 
 export default function AdminPedidosPage() {
-  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orders, setOrders] = useState<WhatsAppOrderRecord[]>([]);
+
+  const refresh = useCallback(() => {
+    setOrders(getWhatsappOrders());
+  }, []);
 
   useEffect(() => {
-    setOrders(getLocalOrders());
-  }, []);
+    refresh();
+    window.addEventListener(WHATSAPP_ORDERS_UPDATED, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(WHATSAPP_ORDERS_UPDATED, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [refresh]);
+
+  function handleDelete(id: string) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Remover este pedido do registro? Esta ação não pode ser desfeita.")
+    ) {
+      return;
+    }
+    deleteWhatsappOrder(id);
+    refresh();
+  }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-stone-900">Pedidos</h1>
+      <h1 className="text-2xl font-bold text-stone-900">Pedidos (WhatsApp)</h1>
       <p className="mt-1 text-stone-600">
-        Em modo local, pedidos são lidos do localStorage.
+        Registro dos pedidos finalizados na loja — o mesmo texto enviado ao WhatsApp fica salvo aqui
+        (navegador deste computador).
       </p>
-      {!orders?.length ? (
-        <p className="mt-8 text-stone-600">Nenhum pedido ainda.</p>
+
+      {!orders.length ? (
+        <p className="mt-8 text-stone-600">
+          Nenhum pedido registrado ainda. Ao finalizar um pedido no checkout, ele aparece aqui.
+        </p>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-xl border border-stone-200 bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50">
-              <tr>
-                <th className="px-4 py-3 font-medium text-stone-700">Data</th>
-                <th className="px-4 py-3 font-medium text-stone-700">Cliente</th>
-                <th className="px-4 py-3 font-medium text-stone-700">Total</th>
-                <th className="px-4 py-3 font-medium text-stone-700">Status</th>
-                <th className="px-4 py-3 font-medium text-stone-700">MP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className="border-b border-stone-100 last:border-0">
-                  <td className="px-4 py-3 whitespace-nowrap text-stone-600">
+        <ul className="mt-8 space-y-6">
+          {orders.map((o) => (
+            <li
+              key={o.id}
+              className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/80 px-4 py-3 sm:px-5">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-stone-500">
                     {new Date(o.created_at).toLocaleString("pt-BR")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-stone-900">{o.customer_name}</div>
-                    <div className="text-xs text-stone-500">{o.customer_email}</div>
-                  </td>
-                  <td className="px-4 py-3">{formatBRL(o.total_cents)}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={
-                        o.status === "paid"
-                          ? "text-green-800"
-                          : o.status === "pending"
-                            ? "text-violet-700"
-                            : "text-stone-600"
-                      }
-                    >
-                      {statusLabel[o.status] ?? o.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-stone-500">
-                    {o.mercadopago_payment_id ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </p>
+                  <p className="mt-1 font-semibold text-stone-900">{o.customer_name}</p>
+                  <p className="text-sm text-stone-600">{o.customer_email}</p>
+                  {o.customer_phone ? (
+                    <p className="text-sm text-stone-500">{o.customer_phone}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <p className="text-lg font-bold text-violet-700">{formatBRL(o.total_cents)}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(o.id)}
+                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                  >
+                    Apagar pedido
+                  </button>
+                </div>
+              </div>
+              <details className="group">
+                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-violet-700 hover:bg-violet-50/50 sm:px-5">
+                  Ver mensagem enviada ao WhatsApp
+                </summary>
+                <div className="border-t border-stone-100 px-4 pb-4 sm:px-5">
+                  <pre className="mt-3 max-h-[min(70vh,28rem)] overflow-auto whitespace-pre-wrap rounded-xl bg-stone-900/5 p-4 text-xs leading-relaxed text-stone-800">
+                    {o.whatsapp_message}
+                  </pre>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

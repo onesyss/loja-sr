@@ -7,50 +7,29 @@ import {
   getLocalProducts,
   PRODUCTS_UPDATED_EVENT,
 } from "@/lib/local-products";
-import type {
-  ProductAudience,
-  ProductRow,
-  ProductStyle,
-} from "@/types/database";
+import {
+  PRODUCT_CATEGORY_LABELS,
+  PRODUCT_CATEGORY_ORDER,
+  resolveProductCategory,
+} from "@/lib/product-category";
+import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
+import type { ProductCategory, ProductRow } from "@/types/database";
 
-type AudienceFilter = "todos" | "masculino" | "feminino" | "infantil";
-type StyleFilter = "todos" | "casual" | "esportivo" | "promocao";
+type CategoryFilter = "todos" | ProductCategory;
 const PAGE_SIZE = 12;
-
-function classifyProduct(product: ProductRow) {
-  const text = `${product.name} ${product.description ?? ""}`.toLowerCase();
-
-  const inferredAudience: ProductAudience = /infan|kids|juvenil/.test(
-    text,
-  )
-    ? "infantil"
-    : /femin|sand[áa]lia|salto/.test(text)
-      ? "feminino"
-      : "masculino";
-
-  const inferredStyle: ProductStyle =
-    /promo|oferta|desconto/.test(text) || product.price_cents <= 12000
-      ? "promocao"
-      : /esport|t[êe]nis|corrida|treino/.test(text)
-        ? "esportivo"
-        : "casual";
-
-  const audience: Exclude<AudienceFilter, "todos"> =
-    product.audience ?? inferredAudience;
-  const style: Exclude<StyleFilter, "todos"> = product.style ?? inferredStyle;
-
-  return { audience, style };
-}
 
 export default function HomePage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("todos");
-  const [styleFilter, setStyleFilter] = useState<StyleFilter>("todos");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("todos");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     const refreshProducts = () => {
-      setProducts(getLocalProducts().filter((product) => product.active));
+      setProducts(
+        getLocalProducts().filter(
+          (product) => product.active && !isHiddenFromStorefront(product),
+        ),
+      );
     };
 
     refreshProducts();
@@ -65,18 +44,14 @@ export default function HomePage() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      const classification = classifyProduct(product);
-      const audienceMatch =
-        audienceFilter === "todos" || classification.audience === audienceFilter;
-      const styleMatch =
-        styleFilter === "todos" || classification.style === styleFilter;
-      return audienceMatch && styleMatch;
+      if (categoryFilter === "todos") return true;
+      return resolveProductCategory(product) === categoryFilter;
     });
-  }, [products, audienceFilter, styleFilter]);
+  }, [products, categoryFilter]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [audienceFilter, styleFilter, products.length]);
+  }, [categoryFilter, products.length]);
 
   const visibleProducts = useMemo(
     () => filteredProducts.slice(0, visibleCount),
@@ -116,10 +91,10 @@ export default function HomePage() {
             Nova coleção
           </p>
           <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-            Estilo, conforto e variedade para todos os passos
+            Estilo, conforto e variedade para seus passos
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-violet-50 sm:text-base">
-            Escolha entre modelos casuais e esportivos, femininos e masculinos.
+            Modelos casuais e esportivos para o público feminino e infantil.
           </p>
         </div>
       </section>
@@ -134,31 +109,20 @@ export default function HomePage() {
           Explore a vitrine, monte seu carrinho e nos envie sua compra. É muito rápido!
         </p>
       </div>
-      <div className="mb-6 grid gap-3 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur-sm sm:grid-cols-2">
+      <div className="mb-6 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
         <label className="text-sm font-medium text-stone-700">
-          Público
+          Tipo de calçado
           <select
             className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-sm outline-none ring-violet-200 transition focus:ring"
-            value={audienceFilter}
-            onChange={(e) => setAudienceFilter(e.target.value as AudienceFilter)}
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
           >
             <option value="todos">Todos</option>
-            <option value="masculino">Masculino</option>
-            <option value="feminino">Feminino</option>
-            <option value="infantil">Infantis</option>
-          </select>
-        </label>
-        <label className="text-sm font-medium text-stone-700">
-          Estilo
-          <select
-            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-sm outline-none ring-violet-200 transition focus:ring"
-            value={styleFilter}
-            onChange={(e) => setStyleFilter(e.target.value as StyleFilter)}
-          >
-            <option value="todos">Todos</option>
-            <option value="casual">Casual</option>
-            <option value="esportivo">Esportivo</option>
-            <option value="promocao">Em promoção</option>
+            {PRODUCT_CATEGORY_ORDER.map((key) => (
+              <option key={key} value={key}>
+                {PRODUCT_CATEGORY_LABELS[key]}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -168,12 +132,12 @@ export default function HomePage() {
         <>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {visibleProducts.map((p) => {
-            const classification = classifyProduct(p);
+            const cat = resolveProductCategory(p);
             return (
             <li key={p.id}>
               <ProductCard
                 product={p}
-                badges={[classification.audience, classification.style]}
+                badges={[PRODUCT_CATEGORY_LABELS[cat]]}
               />
             </li>
             );

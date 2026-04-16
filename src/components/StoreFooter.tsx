@@ -1,13 +1,16 @@
 import { BRAND, whatsappHref } from "@/lib/brand";
+import { BrandLogo } from "./BrandLogo";
 
 export function StoreFooter() {
   return (
     <footer className="mt-auto border-t border-white/70 bg-white/70 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-semibold text-violet-700">{BRAND.name}</p>
-          <p className="text-sm text-stone-600">{BRAND.tagline}</p>
-          <p className="mt-1 text-sm text-stone-500">{BRAND.address}</p>
+        <div className="flex flex-col gap-2">
+          <BrandLogo
+            href="/"
+            heightClassName="h-10 w-auto max-w-[140px] sm:h-11 sm:max-w-[160px]"
+          />
+          <p className="text-sm text-stone-500">{BRAND.address}</p>
         </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <span className="text-stone-500">

@@ -1,4 +1,5 @@
 import type { ProductRow } from "@/types/database";
+import { resolveProductCategory, styleFromCategory } from "@/lib/product-category";
 
 type ProductOptions = {
   sizes: number[];
@@ -7,8 +8,7 @@ type ProductOptions = {
 
 function inferAudience(text: string) {
   if (/infan|kids|juvenil/.test(text)) return "infantil";
-  if (/femin|sand[áa]lia|salto/.test(text)) return "feminino";
-  return "masculino";
+  return "feminino";
 }
 
 function inferStyle(text: string) {
@@ -19,9 +19,7 @@ function inferStyle(text: string) {
 function getBaseSizesForAudience(audience: string) {
   return audience === "infantil"
     ? [28, 29, 30, 31, 32, 33, 34]
-    : audience === "feminino"
-      ? [34, 35, 36, 37, 38, 39, 40]
-      : [37, 38, 39, 40, 41, 42, 43, 44];
+    : [34, 35, 36, 37, 38, 39, 40];
 }
 
 function getBaseColorsForStyle(style: string) {
@@ -51,7 +49,11 @@ export function getProductOptions(product: ProductRow): ProductOptions {
 
   const text = `${product.name} ${product.description ?? ""}`.toLowerCase();
   const audience = product.audience ?? inferAudience(text);
-  const style = product.style ?? inferStyle(text);
+  const style =
+    product.style ??
+    (product.category
+      ? styleFromCategory(resolveProductCategory(product))
+      : inferStyle(text));
 
   const baseSizes = getBaseSizesForAudience(audience);
 
@@ -75,7 +77,11 @@ export function getProductSizeGrid(product: ProductRow) {
 
 export function getProductColorGrid(product: ProductRow) {
   const text = `${product.name} ${product.description ?? ""}`.toLowerCase();
-  const style = product.style ?? inferStyle(text);
+  const style =
+    product.style ??
+    (product.category
+      ? styleFromCategory(resolveProductCategory(product))
+      : inferStyle(text));
   const allColors = getBaseColorsForStyle(style);
   const availableColors = getProductOptions(product).colors;
   return { allColors, availableColors };

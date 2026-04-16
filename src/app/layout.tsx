@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: "SR CALÇADOS — Moda a seus pés",
   description:
     "SR CALÇADOS — Moda a seus pés. Loja online de calçados com checkout Mercado Pago.",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: "/favicon.png",
+  },
 };
 
 export const viewport: Viewport = {

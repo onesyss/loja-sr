@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCart } from "@/context/cart-context";
 import { getLocalProductBySlug } from "@/lib/local-products";
+import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
 import { formatBRL } from "@/lib/money";
 import { getDisplayImage, getPlaceholderImage } from "@/lib/product-images";
 import {
@@ -24,7 +25,9 @@ export default function ProdutoPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    const found = getLocalProductBySlug(params.slug) ?? null;
+    const raw = getLocalProductBySlug(params.slug) ?? null;
+    const found =
+      raw && !isHiddenFromStorefront(raw) ? raw : null;
     setProduct(found);
 
     if (found) {

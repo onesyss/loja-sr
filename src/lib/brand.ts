@@ -2,10 +2,11 @@
 export const BRAND = {
   name: "SR CALÇADOS",
   tagline: "Moda a seus pés",
+
   /** wa.me sem + */
-  whatsappE164: "5591982109231",
+  whatsappE164: "5591985240488",
   instagramUrl: "https://instagram.com/",
-  address: "Coronel Vitorio, centro de Igarape-Miri - PA",
+  address: "Rua Coronel Garcia, Centro — Igarape-Miri/PA",
 } as const;
 
 export const whatsappHref = `https://wa.me/${BRAND.whatsappE164}`;

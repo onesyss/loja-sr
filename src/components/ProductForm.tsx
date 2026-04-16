@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { upsertLocalProduct } from "@/lib/local-products";
 import { slugify } from "@/lib/slug";
-import type { ProductAudience, ProductRow, ProductStyle } from "@/types/database";
+import {
+  PRODUCT_CATEGORY_LABELS,
+  PRODUCT_CATEGORY_ORDER,
+  audienceFromProductName,
+  inferProductCategoryFromText,
+  styleFromCategory,
+} from "@/lib/product-category";
+import type { ProductCategory, ProductRow } from "@/types/database";
 
 type Props = {
   initial?: ProductRow | null;
@@ -18,10 +25,13 @@ export function ProductForm({ initial }: Props) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [audience, setAudience] = useState<ProductAudience>(
-    initial?.audience ?? "masculino",
+  const [category, setCategory] = useState<ProductCategory>(
+    () =>
+      initial?.category ??
+      inferProductCategoryFromText(
+        `${initial?.name ?? ""} ${initial?.description ?? ""}`,
+      ),
   );
-  const [style, setStyle] = useState<ProductStyle>(initial?.style ?? "casual");
   const [availableSizes, setAvailableSizes] = useState(
     initial?.available_sizes?.join(", ") ?? "",
   );
@@ -123,12 +133,16 @@ export function ProductForm({ initial }: Props) {
     }
 
     const cleanSlug = slug.trim() || slugify(name);
+    const trimmedName = name.trim();
+    const audience = audienceFromProductName(trimmedName);
+    const style = styleFromCategory(category);
     const saved = upsertLocalProduct(
       {
         code: code.trim() || null,
-        name: name.trim(),
+        name: trimmedName,
         slug: cleanSlug,
         description: description.trim() || null,
+        category,
         audience,
         style,
         price_cents,
@@ -208,37 +222,22 @@ export function ProductForm({ initial }: Props) {
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium text-stone-700" htmlFor="audience">
-            Público (vitrine)
-          </label>
-          <select
-            id="audience"
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={audience}
-            onChange={(e) => setAudience(e.target.value as ProductAudience)}
-          >
-            <option value="masculino">Masculino</option>
-            <option value="feminino">Feminino</option>
-            <option value="infantil">Infantil</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-stone-700" htmlFor="style">
-            Estilo (vitrine)
-          </label>
-          <select
-            id="style"
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={style}
-            onChange={(e) => setStyle(e.target.value as ProductStyle)}
-          >
-            <option value="casual">Casual</option>
-            <option value="esportivo">Esportivo</option>
-            <option value="promocao">Em promoção</option>
-          </select>
-        </div>
+      <div>
+        <label className="block text-sm font-medium text-stone-700" htmlFor="category">
+          Tipo de calçado (vitrine)
+        </label>
+        <select
+          id="category"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as ProductCategory)}
+        >
+          {PRODUCT_CATEGORY_ORDER.map((key) => (
+            <option key={key} value={key}>
+              {PRODUCT_CATEGORY_LABELS[key]}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

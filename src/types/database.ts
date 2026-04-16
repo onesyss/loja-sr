@@ -1,6 +1,19 @@
 export type OrderStatus = "pending" | "paid" | "cancelled" | "failed";
-export type ProductAudience = "masculino" | "feminino" | "infantil";
+export type ProductAudience = "feminino" | "infantil";
 export type ProductStyle = "casual" | "esportivo" | "promocao";
+
+/** Tipo de calçado (filtro da vitrine e cadastro). */
+export type ProductCategory =
+  | "sandalia"
+  | "tenis"
+  | "sapato"
+  | "bota"
+  | "rasteirinha"
+  | "chinelo"
+  | "mule"
+  | "sapatilha"
+  | "tamanco"
+  | "melissa";
 
 export type ProfileRole = "customer" | "admin";
 
@@ -17,6 +30,7 @@ export interface ProductRow {
   image_url: string | null;
   audience?: ProductAudience | null;
   style?: ProductStyle | null;
+  category?: ProductCategory | null;
   available_sizes?: number[] | null;
   available_colors?: string[] | null;
   extra_image_urls?: string[] | null;
@@ -45,4 +59,16 @@ export interface OrderItemRow {
   product_id: string;
   quantity: number;
   unit_price_cents: number;
+}
+
+/** Pedido enviado pelo fluxo WhatsApp (armazenamento local no admin). */
+export interface WhatsAppOrderRecord {
+  id: string;
+  created_at: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+  total_cents: number;
+  /** Texto completo enviado ao WhatsApp. */
+  whatsapp_message: string;
 }

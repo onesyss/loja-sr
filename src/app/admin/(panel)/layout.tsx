@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminLogoutButton } from "@/components/AdminLogoutButton";
 import { AdminSessionGuard } from "@/components/AdminSessionGuard";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function AdminPanelLayout({
   children,
@@ -13,8 +14,12 @@ export default function AdminPanelLayout({
         <div className="border-b border-stone-200 bg-white">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
             <div className="flex items-center gap-6">
-              <Link href="/admin" className="font-semibold text-violet-700">
-                Admin · SR CALÇADOS
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 font-semibold text-violet-700"
+              >
+                <BrandLogo heightClassName="h-14 w-auto max-w-[200px] sm:h-16 sm:max-w-[240px] md:h-[72px] md:max-w-[260px]" />
+                <span className="hidden sm:inline">Admin</span>
               </Link>
               <nav className="flex gap-4 text-sm text-stone-600">
                 <Link href="/admin/produtos" className="hover:text-violet-600">

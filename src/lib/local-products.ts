@@ -8,15 +8,40 @@ function canUseBrowserStorage() {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
 
+function normalizeLegacyProduct(product: ProductRow): ProductRow {
+  let p = { ...product };
+  if ((p.audience as string | undefined) === "masculino") {
+    p = { ...p, audience: "feminino" };
+  }
+  if (p.slug === "mocassim-casual-masculino") {
+    p = {
+      ...p,
+      slug: "mocassim-casual-classico",
+      name: "Mocassim Casual Clássico",
+      audience: "feminino",
+    };
+  }
+  return p;
+}
+
 function ensureProductCodes(products: ProductRow[]) {
-  return products.map((product, index) => ({
-    ...product,
-    code: product.code?.trim() ? product.code : `SR-${String(index + 1).padStart(3, "0")}`,
-    discount_percent:
-      typeof product.discount_percent === "number" ? product.discount_percent : 6,
-    max_installments:
-      typeof product.max_installments === "number" ? product.max_installments : 5,
-  }));
+  return products.map((product, index) => {
+    const normalized = normalizeLegacyProduct(product);
+    return {
+      ...normalized,
+      code: normalized.code?.trim()
+        ? normalized.code
+        : `SR-${String(index + 1).padStart(3, "0")}`,
+      discount_percent:
+        typeof normalized.discount_percent === "number"
+          ? normalized.discount_percent
+          : 6,
+      max_installments:
+        typeof normalized.max_installments === "number"
+          ? normalized.max_installments
+          : 5,
+    };
+  });
 }
 
 function ensureSeedProducts(products: ProductRow[]) {
