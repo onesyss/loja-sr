@@ -17,7 +17,7 @@ export function ProductCard({ product, badges = [] }: Props) {
   const discountPercent = product.discount_percent ?? 6;
   const maxInstallments = Math.min(Math.max(product.max_installments ?? 5, 1), 5);
   const pixCents = Math.round(product.price_cents * (1 - discountPercent / 100));
-  const imageSrc = getDisplayImage(product);
+  const imageSrc = getDisplayImage(product, 0, options.colors[0] ?? null);
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-sm ring-1 ring-violet-100/70 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg">

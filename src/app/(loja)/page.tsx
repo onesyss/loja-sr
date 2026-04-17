@@ -24,21 +24,23 @@ export default function HomePage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
-    const refreshProducts = () => {
+    const refreshProducts = async () => {
+      const all = await getLocalProducts();
       setProducts(
-        getLocalProducts().filter(
-          (product) => product.active && !isHiddenFromStorefront(product),
-        ),
+        all.filter((product) => product.active && !isHiddenFromStorefront(product)),
       );
     };
 
-    refreshProducts();
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
-    window.addEventListener("storage", refreshProducts);
+    void refreshProducts();
+    const onProductsUpdated = () => {
+      void refreshProducts();
+    };
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+    window.addEventListener("storage", onProductsUpdated);
 
     return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
-      window.removeEventListener("storage", refreshProducts);
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+      window.removeEventListener("storage", onProductsUpdated);
     };
   }, []);
 

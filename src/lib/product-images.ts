@@ -1,4 +1,5 @@
 import type { ProductRow } from "@/types/database";
+import { resolveProductCategory } from "@/lib/product-category";
 
 const IMAGE_LIBRARY = {
   tenis: [
@@ -33,6 +34,27 @@ const IMAGE_LIBRARY = {
   ],
 } as const;
 
+/** Fotos de tênis alinhadas à cor (Unsplash). */
+const TENIS_POR_COR = {
+  vermelho: [
+    "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1608231387042-66d1773070a5?auto=format&fit=crop&w=1200&q=80",
+  ],
+  verde: [
+    "https://images.unsplash.com/photo-1606107550945-3490a7b67144?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1551107696-4b6c56c2fc28?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1595950653106-fb8a2cb38e8f?auto=format&fit=crop&w=1200&q=80",
+  ],
+  azul: [
+    "https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1543508282-6319a3e2621f?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1605348532760-6753d2c43329?auto=format&fit=crop&w=1200&q=80",
+  ],
+} as const;
+
+type TomTenis = keyof typeof TENIS_POR_COR;
+
 function hashString(value: string) {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -40,6 +62,29 @@ function hashString(value: string) {
     hash |= 0;
   }
   return Math.abs(hash);
+}
+
+/** Cor a partir do texto (cor escolhida, nome do produto ou descrição). */
+export function inferTenisColorTone(text: string): TomTenis | null {
+  const t = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (/vermelh|red|bordo|vinho|rubro/.test(t)) return "vermelho";
+  if (/verde|green|militar|oliva|lima/.test(t)) return "verde";
+  if (/azul|blue|marinho|navy|celeste|turques/.test(t)) return "azul";
+  return null;
+}
+
+function inferColorHintForTenis(
+  product: ProductRow,
+  colorHint?: string | null,
+): string {
+  const fromHint = colorHint?.trim();
+  if (fromHint) return fromHint;
+  const first = product.available_colors?.[0]?.trim();
+  if (first) return first;
+  return `${product.name} ${product.description ?? ""}`;
 }
 
 function getImageGroup(product: Pick<ProductRow, "name" | "description">) {
@@ -60,8 +105,28 @@ export function getPlaceholderImage(product: Pick<ProductRow, "slug" | "id">, va
   return pool[idx];
 }
 
-export function getDisplayImage(product: ProductRow, variant = 0) {
+/**
+ * `colorHint`: cor escolhida (PDP/carrinho) ou vazio — para **tênis**, tenta casar
+ * vermelho / verde / azul com fotos correspondentes.
+ */
+export function getDisplayImage(
+  product: ProductRow,
+  variant = 0,
+  colorHint?: string | null,
+) {
   if (product.image_url) return product.image_url;
+
+  if (resolveProductCategory(product) === "tenis") {
+    const raw = inferColorHintForTenis(product, colorHint);
+    const tom = inferTenisColorTone(raw);
+    if (tom) {
+      const pool = TENIS_POR_COR[tom];
+      const base = hashString(`${product.slug}-${product.id}-${tom}`);
+      const idx = (base + variant) % pool.length;
+      return pool[idx];
+    }
+  }
+
   const pool = getImageGroup(product);
   const base = hashString(`${product.slug}-${product.id}`);
   const idx = (base + variant) % pool.length;

@@ -1,12 +1,7 @@
 import { mockProducts } from "@/lib/mock-products";
 import type { ProductRow } from "@/types/database";
 
-const PRODUCTS_STORAGE_KEY = "sr-calcados-products";
 export const PRODUCTS_UPDATED_EVENT = "sr-calcados-products-updated";
-
-function canUseBrowserStorage() {
-  return typeof window !== "undefined" && typeof localStorage !== "undefined";
-}
 
 function normalizeLegacyProduct(product: ProductRow): ProductRow {
   let p = { ...product };
@@ -44,95 +39,86 @@ function ensureProductCodes(products: ProductRow[]) {
   });
 }
 
-function ensureSeedProducts(products: ProductRow[]) {
-  const bySlug = new Map(products.map((product) => [product.slug, product]));
-  for (const seed of mockProducts) {
-    if (!bySlug.has(seed.slug)) {
-      products.push(seed);
-    }
-  }
-  return products;
+/** Mocks só quando a API falha (dev/offline). Resposta 200 da API = só Supabase. */
+function fallbackProducts() {
+  return ensureProductCodes([...mockProducts]);
 }
 
-export function getLocalProducts(): ProductRow[] {
-  if (!canUseBrowserStorage()) return mockProducts;
-
+async function requestProducts(path: string, init?: RequestInit) {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  let data: unknown = null;
   try {
-    const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
-    if (!raw) {
-      const normalized = ensureProductCodes(mockProducts);
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(normalized));
-      return normalized;
-    }
-
-    const parsed = JSON.parse(raw) as ProductRow[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      const normalized = ensureProductCodes(mockProducts);
-      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(normalized));
-      return normalized;
-    }
-
-    const normalized = ensureProductCodes(ensureSeedProducts([...parsed]));
-    localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(normalized));
-    return normalized;
+    data = await response.json();
   } catch {
-    return mockProducts;
+    data = null;
+  }
+  return { response, data };
+}
+
+export async function getLocalProducts(): Promise<ProductRow[]> {
+  try {
+    const { response, data } = await requestProducts("/api/products", {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok || !Array.isArray(data)) {
+      return fallbackProducts();
+    }
+    return ensureProductCodes(data as ProductRow[]);
+  } catch {
+    return fallbackProducts();
   }
 }
 
-export function saveLocalProducts(products: ProductRow[]) {
-  if (!canUseBrowserStorage()) return;
-  localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
-  window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
+export async function getLocalProductBySlug(slug: string): Promise<ProductRow | null> {
+  try {
+    const { response, data } = await requestProducts(
+      `/api/products?slug=${encodeURIComponent(slug)}`,
+      { method: "GET", cache: "no-store" },
+    );
+    if (!response.ok || !data || Array.isArray(data)) return null;
+    return ensureProductCodes([data as ProductRow])[0] ?? null;
+  } catch {
+    const fallback = fallbackProducts();
+    return fallback.find((product) => product.slug === slug) ?? null;
+  }
 }
 
-export function getLocalProductBySlug(slug: string) {
-  return getLocalProducts().find((product) => product.slug === slug);
+export async function getLocalProductById(id: string): Promise<ProductRow | null> {
+  try {
+    const { response, data } = await requestProducts(`/api/products/${id}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok || !data || Array.isArray(data)) return null;
+    return ensureProductCodes([data as ProductRow])[0] ?? null;
+  } catch {
+    const fallback = fallbackProducts();
+    return fallback.find((product) => product.id === id) ?? null;
+  }
 }
 
-export function getLocalProductById(id: string) {
-  return getLocalProducts().find((product) => product.id === id);
-}
-
-export function upsertLocalProduct(
+export async function upsertLocalProduct(
   payload: Omit<ProductRow, "id" | "created_at" | "updated_at">,
   currentId?: string,
 ) {
-  const now = new Date().toISOString();
-  const products = getLocalProducts();
-  const hasDuplicateSlug = products.some(
-    (product) => product.slug === payload.slug && product.id !== currentId,
-  );
-
-  if (hasDuplicateSlug) return null;
-
-  if (currentId) {
-    const updated = products.map((product) =>
-      product.id === currentId
-        ? {
-            ...product,
-            ...payload,
-            updated_at: now,
-          }
-        : product,
-    );
-    saveLocalProducts(updated);
-    return updated.find((product) => product.id === currentId) ?? null;
+  const path = currentId ? `/api/products/${currentId}` : "/api/products";
+  const method = currentId ? "PUT" : "POST";
+  const { response, data } = await requestProducts(path, {
+    method,
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok || !data || Array.isArray(data)) {
+    return null;
   }
-
-  const id =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}`;
-
-  const created: ProductRow = {
-    id,
-    ...payload,
-    created_at: now,
-    updated_at: now,
-  };
-
-  const next = [created, ...products];
-  saveLocalProducts(next);
-  return created;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
+  }
+  return ensureProductCodes([data as ProductRow])[0] ?? null;
 }

@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { CartAddedToast } from "@/components/CartAddedToast";
 import type { ProductRow } from "@/types/database";
 
 export interface CartLine {
@@ -60,6 +61,10 @@ function loadLines(): CartLine[] {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [cartToast, setCartToast] = useState<{
+    productName: string;
+    key: number;
+  } | null>(null);
 
   useEffect(() => {
     setLines(loadLines());
@@ -70,6 +75,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
   }, [lines, hydrated]);
+
+  useEffect(() => {
+    if (!cartToast) return;
+    const t = window.setTimeout(() => setCartToast(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [cartToast]);
 
   const add = useCallback(
     (
@@ -99,6 +110,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       };
       return next;
     });
+    setCartToast({ productName: product.name, key: Date.now() });
     },
     [],
   );
@@ -139,7 +151,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [lines, add, remove, setQuantity, clear]);
 
   return (
-    <CartContext.Provider value={value}>{children}</CartContext.Provider>
+    <CartContext.Provider value={value}>
+      {children}
+      <CartAddedToast payload={cartToast} />
+    </CartContext.Provider>
   );
 }
 

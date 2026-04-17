@@ -24,3 +24,14 @@ export function writeAdminUser(user: AdminUser) {
   if (typeof window === "undefined") return;
   localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(user));
 }
+
+/** Remove sessão antiga (antes do Supabase Auth); chamar após login real. */
+export function clearLegacyAdminStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    localStorage.removeItem(ADMIN_USER_KEY);
+  } catch {
+    /* ignore */
+  }
+}

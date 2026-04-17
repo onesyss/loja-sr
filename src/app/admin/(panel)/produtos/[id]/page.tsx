@@ -14,17 +14,21 @@ export default function EditarProdutoPage() {
   const [product, setProduct] = useState<ProductRow | null>(null);
 
   useEffect(() => {
-    const refreshProduct = () => {
-      setProduct(getLocalProductById(params.id) ?? null);
+    const refreshProduct = async () => {
+      const found = await getLocalProductById(params.id);
+      setProduct(found ?? null);
     };
 
-    refreshProduct();
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, refreshProduct);
-    window.addEventListener("storage", refreshProduct);
+    void refreshProduct();
+    const onProductsUpdated = () => {
+      void refreshProduct();
+    };
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+    window.addEventListener("storage", onProductsUpdated);
 
     return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, refreshProduct);
-      window.removeEventListener("storage", refreshProduct);
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+      window.removeEventListener("storage", onProductsUpdated);
     };
   }, [params.id]);
 

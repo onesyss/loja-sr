@@ -11,7 +11,9 @@ Loja virtual com Next.js (App Router), Supabase (Auth, Banco e Storage) e Mercad
 
 ## Como conectar ao Supabase (já tenho conta)
 
-Este passo a passo considera que voce ja possui conta no Supabase e quer conectar este projeto.
+Guia detalhado (inclui como **verificar tabelas** e testar a API): [`docs/supabase-conexao.md`](docs/supabase-conexao.md).
+
+Este resumo considera que voce ja possui conta no Supabase e quer conectar este projeto.
 
 ### 1) Criar ou selecionar projeto
 
@@ -36,7 +38,7 @@ Na raiz do projeto:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=SUA_ANON_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_PUBLICA
 SUPABASE_SERVICE_ROLE_KEY=SUA_SERVICE_ROLE_KEY
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 MERCADOPAGO_ACCESS_TOKEN=SEU_TOKEN_MP
@@ -48,19 +50,14 @@ MERCADOPAGO_ACCESS_TOKEN=SEU_TOKEN_MP
 
 1. No Supabase, abra **SQL Editor**.
 2. Execute o script `supabase/schema.sql`.
-3. Confirme se as tabelas foram criadas (`products`, `orders`, `order_items`, `profiles`).
+3. Confirme se as tabelas foram criadas (`profiles`, `products`, `orders`, `order_items`, `whatsapp_orders`). Veja [`docs/supabase-conexao.md`](docs/supabase-conexao.md) para conferência no Table Editor ou via SQL.
 
-### 5) Criar usuario admin
+### 5) Usuario gestor do painel
 
-1. Em **Authentication -> Users**, crie um usuario (email/senha).
-2. Copie o `id` (UUID) desse usuario.
-3. No SQL Editor, execute:
+1. Abra **/admin/cadastro** na app: o cadastro ja cria perfil com **admin** e `preferences` (preferencias por usuario) se o `schema.sql` estiver atualizado no Supabase.
+2. Alternativa manual: crie usuario apenas no **Authentication** e rode SQL para `role = 'admin'` (ver [`docs/supabase-conexao.md`](docs/supabase-conexao.md) secao 7).
 
-```sql
-update public.profiles
-set role = 'admin'
-where id = 'UUID_DO_USUARIO';
-```
+Depois use **/admin/login**. Em **/admin/configuracao** cada gestor pode salvar observacoes e opcoes proprias.
 
 ### 6) Rodar o projeto
 
@@ -82,10 +79,11 @@ Acesse `http://localhost:3000` para loja e `http://localhost:3000/admin/login` p
 
 1. Importe o repositorio na Vercel.
 2. Configure as mesmas variaveis do `.env.local`.
-3. Defina `NEXT_PUBLIC_APP_URL` com a URL publica (ex.: `https://seu-projeto.vercel.app`).
+3. Defina `NEXT_PUBLIC_APP_URL` com a URL publica do deploy (este projeto: `https://loja-sr.vercel.app`).
+4. No Supabase, inclua `https://loja-sr.vercel.app/auth/callback` nas Redirect URLs (ver `docs/supabase-conexao.md`).
 
 ## Solucao de problemas rapida
 
-- **Erro de chave do Supabase:** revise `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- **Erro de chave do Supabase:** revise `NEXT_PUBLIC_SUPABASE_URL` e a chave pública (`NEXT_PUBLIC_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`).
 - **Admin sem acesso:** confirme que o usuario esta em `profiles` com `role = 'admin'`.
 - **Webhook nao atualiza pedido:** revise `MERCADOPAGO_ACCESS_TOKEN` e URL publica da aplicacao.

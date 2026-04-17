@@ -17,6 +17,21 @@ export type ProductCategory =
 
 export type ProfileRole = "customer" | "admin";
 
+/** Preferências por usuário no painel (cada perfil salva o seu). */
+export type ProfilePreferences = {
+  /** Observação só para quem está logado (lembrete interno). */
+  private_note?: string;
+  /** Destaque extra na vitrine (opcional; pode ser usado no banner). */
+  storefront_highlight?: string;
+};
+
+export interface ProfileRow {
+  id: string;
+  role: ProfileRole;
+  preferences: ProfilePreferences | null;
+  created_at: string;
+}
+
 export interface ProductRow {
   id: string;
   code?: string | null;

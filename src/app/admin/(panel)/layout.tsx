@@ -21,12 +21,15 @@ export default function AdminPanelLayout({
                 <BrandLogo heightClassName="h-14 w-auto max-w-[200px] sm:h-16 sm:max-w-[240px] md:h-[72px] md:max-w-[260px]" />
                 <span className="hidden sm:inline">Admin</span>
               </Link>
-              <nav className="flex gap-4 text-sm text-stone-600">
+              <nav className="flex flex-wrap gap-4 text-sm text-stone-600">
                 <Link href="/admin/produtos" className="hover:text-violet-600">
                   Produtos
                 </Link>
                 <Link href="/admin/pedidos" className="hover:text-violet-600">
                   Pedidos
+                </Link>
+                <Link href="/admin/configuracao" className="hover:text-violet-600">
+                  Minha conta
                 </Link>
               </nav>
             </div>

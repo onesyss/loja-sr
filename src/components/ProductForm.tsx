@@ -136,7 +136,7 @@ export function ProductForm({ initial }: Props) {
     const trimmedName = name.trim();
     const audience = audienceFromProductName(trimmedName);
     const style = styleFromCategory(category);
-    const saved = upsertLocalProduct(
+    const saved = await upsertLocalProduct(
       {
         code: code.trim() || null,
         name: trimmedName,
@@ -159,7 +159,7 @@ export function ProductForm({ initial }: Props) {
     );
 
     if (!saved) {
-      setError("Já existe um produto com este slug. Ajuste o slug.");
+      setError("Não foi possível salvar. Verifique se o slug já existe.");
       setLoading(false);
       return;
     }

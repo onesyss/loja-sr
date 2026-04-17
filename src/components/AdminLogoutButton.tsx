@@ -2,17 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ADMIN_SESSION_KEY } from "@/lib/admin-auth";
+import { clearLegacyAdminStorage } from "@/lib/admin-auth";
+import { createClient } from "@/lib/supabase/client";
 
 export function AdminLogoutButton() {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  function handleLogout() {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(ADMIN_SESSION_KEY);
-    }
+  async function handleLogout() {
     setConfirmOpen(false);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    clearLegacyAdminStorage();
     router.push("/admin/login");
     router.refresh();
   }
@@ -59,7 +60,7 @@ export function AdminLogoutButton() {
               <button
                 type="button"
                 className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
-                onClick={handleLogout}
+                onClick={() => void handleLogout()}
               >
                 Sim, sair
               </button>

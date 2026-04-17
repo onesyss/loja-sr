@@ -38,7 +38,7 @@ export default function CarrinhoPage() {
           >
             <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-stone-100">
               <Image
-                src={getDisplayImage(product)}
+                src={getDisplayImage(product, 0, color ?? null)}
                 alt={product.name}
                 fill
                 className="object-cover"

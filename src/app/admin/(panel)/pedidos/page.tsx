@@ -13,7 +13,7 @@ export default function AdminPedidosPage() {
   const [orders, setOrders] = useState<WhatsAppOrderRecord[]>([]);
 
   const refresh = useCallback(() => {
-    setOrders(getWhatsappOrders());
+    void getWhatsappOrders().then(setOrders);
   }, []);
 
   useEffect(() => {
@@ -26,14 +26,14 @@ export default function AdminPedidosPage() {
     };
   }, [refresh]);
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (
       typeof window !== "undefined" &&
       !window.confirm("Remover este pedido do registro? Esta ação não pode ser desfeita.")
     ) {
       return;
     }
-    deleteWhatsappOrder(id);
+    await deleteWhatsappOrder(id);
     refresh();
   }
 

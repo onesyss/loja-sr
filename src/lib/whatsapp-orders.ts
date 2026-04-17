@@ -1,46 +1,70 @@
 import type { WhatsAppOrderRecord } from "@/types/database";
 
-const STORAGE_KEY = "sr-calcados-whatsapp-orders";
 export const WHATSAPP_ORDERS_UPDATED = "sr-calcados-whatsapp-orders-updated";
 
-function canUseStorage() {
-  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+async function requestApi(path: string, init?: RequestInit) {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+  return { response, data };
 }
 
-export function getWhatsappOrders(): WhatsAppOrderRecord[] {
-  if (!canUseStorage()) return [];
+export async function getWhatsappOrders(): Promise<WhatsAppOrderRecord[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as WhatsAppOrderRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+    const { response, data } = await requestApi("/api/whatsapp-orders", {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!response.ok || !Array.isArray(data)) {
+      return [];
+    }
+    return data as WhatsAppOrderRecord[];
   } catch {
     return [];
   }
 }
 
-export function saveWhatsappOrder(
+export async function saveWhatsappOrder(
   payload: Omit<WhatsAppOrderRecord, "id" | "created_at">,
-): WhatsAppOrderRecord {
-  const id =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const created_at = new Date().toISOString();
-  const record: WhatsAppOrderRecord = {
-    id,
-    created_at,
-    ...payload,
-  };
-  const next = [record, ...getWhatsappOrders()];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  window.dispatchEvent(new Event(WHATSAPP_ORDERS_UPDATED));
-  return record;
+): Promise<WhatsAppOrderRecord | null> {
+  try {
+    const { response, data } = await requestApi("/api/whatsapp-orders", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok || !data || Array.isArray(data)) {
+      return null;
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(WHATSAPP_ORDERS_UPDATED));
+    }
+    return data as WhatsAppOrderRecord;
+  } catch {
+    return null;
+  }
 }
 
-export function deleteWhatsappOrder(id: string): void {
-  if (!canUseStorage()) return;
-  const next = getWhatsappOrders().filter((o) => o.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  window.dispatchEvent(new Event(WHATSAPP_ORDERS_UPDATED));
+export async function deleteWhatsappOrder(id: string): Promise<boolean> {
+  try {
+    const { response } = await requestApi(`/api/whatsapp-orders/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) return false;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(WHATSAPP_ORDERS_UPDATED));
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }

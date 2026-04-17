@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ADMIN_SESSION_KEY, readAdminUser } from "@/lib/admin-auth";
+import { tryPromoteAdminFromSignup, fetchProfileIsAdmin } from "@/lib/admin-role";
+import { createClient } from "@/lib/supabase/client";
 
 export function AdminSessionGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -10,21 +11,42 @@ export function AdminSessionGuard({ children }: { children: React.ReactNode }) {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(ADMIN_SESSION_KEY);
-      if (!raw) {
+    let cancelled = false;
+
+    async function verify() {
+      const supabase = createClient();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (error || !user) {
         router.replace(`/admin/login?redirect=${encodeURIComponent(pathname || "/admin")}`);
         return;
       }
-      const adminUser = readAdminUser();
-      if (!adminUser) {
-        router.replace("/admin/cadastro");
+
+      let isAdmin = await fetchProfileIsAdmin(supabase, user.id);
+      if (!isAdmin) {
+        await tryPromoteAdminFromSignup();
+        isAdmin = await fetchProfileIsAdmin(supabase, user.id);
+      }
+
+      if (cancelled) return;
+
+      if (!isAdmin) {
+        router.replace("/admin/sem-permissao");
         return;
       }
+
       setAllowed(true);
-    } catch {
-      router.replace("/admin/login");
     }
+
+    void verify();
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, router]);
 
   if (!allowed) {

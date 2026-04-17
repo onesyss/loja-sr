@@ -24,21 +24,25 @@ export default function AdminProdutosPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const refreshProducts = () => {
+    const refreshProducts = async () => {
+      const all = await getLocalProducts();
       setProducts(
-        [...getLocalProducts()].sort((a, b) =>
+        [...all].sort((a, b) =>
           a.created_at < b.created_at ? 1 : -1,
         ),
       );
     };
 
-    refreshProducts();
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
-    window.addEventListener("storage", refreshProducts);
+    void refreshProducts();
+    const onProductsUpdated = () => {
+      void refreshProducts();
+    };
+    window.addEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+    window.addEventListener("storage", onProductsUpdated);
 
     return () => {
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, refreshProducts);
-      window.removeEventListener("storage", refreshProducts);
+      window.removeEventListener(PRODUCTS_UPDATED_EVENT, onProductsUpdated);
+      window.removeEventListener("storage", onProductsUpdated);
     };
   }, []);
 

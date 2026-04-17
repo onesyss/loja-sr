@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/context/cart-context";
 import { getLocalProductBySlug } from "@/lib/local-products";
 import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
@@ -25,18 +25,34 @@ export default function ProdutoPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = getLocalProductBySlug(params.slug) ?? null;
-    const found =
-      raw && !isHiddenFromStorefront(raw) ? raw : null;
-    setProduct(found);
+    const load = async () => {
+      const raw = await getLocalProductBySlug(params.slug);
+      const found = raw && !isHiddenFromStorefront(raw) ? raw : null;
+      setProduct(found);
 
-    if (found) {
-      const options = getProductOptions(found);
-      setSelectedSize(options.sizes[0] ?? null);
-      setSelectedColor(options.colors[0] ?? "");
-      setSelectedImage(getDisplayImage(found));
-    }
+      if (found) {
+        const options = getProductOptions(found);
+        setSelectedSize(options.sizes[0] ?? null);
+        setSelectedColor(options.colors[0] ?? "");
+      }
+    };
+    void load();
   }, [params.slug]);
+
+  useEffect(() => {
+    if (!product) return;
+    setSelectedImage(getDisplayImage(product, 0, selectedColor || null));
+  }, [product, selectedColor]);
+
+  const galleryImages = useMemo(() => {
+    if (!product) return [] as string[];
+    return [
+      getDisplayImage(product, 0, selectedColor || null),
+      ...(product.extra_image_urls ?? []),
+      getPlaceholderImage(product, 1),
+      getPlaceholderImage(product, 2),
+    ].filter(Boolean) as string[];
+  }, [product, selectedColor]);
 
   if (!product) {
     return (
@@ -60,12 +76,6 @@ export default function ProdutoPage() {
   const discountPercent = product.discount_percent ?? 6;
   const maxInstallments = Math.min(Math.max(product.max_installments ?? 5, 1), 5);
   const pixCents = Math.round(product.price_cents * (1 - discountPercent / 100));
-  const galleryImages = [
-    getDisplayImage(product, 0),
-    ...(product.extra_image_urls ?? []),
-    getPlaceholderImage(product, 1),
-    getPlaceholderImage(product, 2),
-  ].filter(Boolean) as string[];
   const isUnavailable =
     product.stock < 1 ||
     !selectedSize ||
@@ -86,7 +96,10 @@ export default function ProdutoPage() {
         <div>
           <div className="relative aspect-square overflow-hidden rounded-2xl bg-stone-100">
             <Image
-              src={selectedImage || getDisplayImage(product)}
+              src={
+                selectedImage ||
+                getDisplayImage(product, 0, selectedColor || null)
+              }
               alt={product.name}
               fill
               className="object-cover"

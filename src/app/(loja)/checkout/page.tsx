@@ -72,7 +72,7 @@ export default function CheckoutPage() {
         const sizeText = line.size ? ` | Tam: ${line.size}` : "";
         const colorText = line.color ? ` | Cor: ${line.color}` : "";
         const codeText = line.product.code ? ` [Cód: ${line.product.code}]` : "";
-        const imageUrl = getDisplayImage(line.product);
+        const imageUrl = getDisplayImage(line.product, 0, line.color ?? null);
         const photoText = imageUrl ? `\n   Foto: ${imageUrl}` : "";
         return `${index + 1}. ${line.product.name}${codeText} x${line.quantity}${sizeText}${colorText} - ${formatBRL(line.product.price_cents * line.quantity)}${photoText}`;
       })
@@ -96,7 +96,7 @@ export default function CheckoutPage() {
       `*Total:* ${formatBRL(finalTotalCents)}\n\n` +
       `Pode me enviar as instruções para pagamento, por favor?`;
 
-    saveWhatsappOrder({
+    await saveWhatsappOrder({
       customer_name: form.customer_name.trim(),
       customer_email: form.customer_email.trim(),
       customer_phone: form.customer_phone.trim() || null,

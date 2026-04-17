@@ -13,6 +13,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@keyframes cart-toast-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 body {
   background:
     radial-gradient(1200px 500px at 10% -10%, #efe7ff 0%, transparent 60%),

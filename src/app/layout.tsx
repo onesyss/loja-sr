@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { AuthUrlNotice } from "@/components/AuthUrlNotice";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +42,9 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-full flex flex-col bg-white text-stone-900"
       >
+        <Suspense fallback={null}>
+          <AuthUrlNotice />
+        </Suspense>
         {children}
       </body>
     </html>

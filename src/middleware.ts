@@ -1,9 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  void request;
-  // Modo temporário sem Supabase: libera todas as rotas sem autenticação.
-  return NextResponse.next();
+  return updateSession(request);
 }
 
 export const config = {
