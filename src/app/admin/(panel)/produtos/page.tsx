@@ -204,12 +204,12 @@ export default function AdminProdutosPage() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4">
-              <div className="relative mt-4 aspect-[4/3] w-full overflow-hidden rounded-2xl bg-stone-100 ring-1 ring-stone-200">
+              <div className="relative mt-4 aspect-[4/3] w-full overflow-hidden rounded-2xl bg-stone-100 p-3 ring-1 ring-stone-200">
                 <Image
                   src={getDisplayImage(selectedProduct)}
                   alt={selectedProduct.name}
                   fill
-                  className="object-cover"
+                  className="object-contain"
                   sizes="(max-width: 768px) 100vw, 448px"
                   unoptimized={
                     Boolean(selectedProduct.image_url?.startsWith("data:"))

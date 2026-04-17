@@ -21,14 +21,19 @@ export function ProductCard({ product, badges = [] }: Props) {
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-sm ring-1 ring-violet-100/70 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-      <Link href={`/produtos/${product.slug}`} className="relative aspect-[5/4] bg-stone-100">
-        <Image
-          src={imageSrc}
-          alt={product.name}
-          fill
-          className="object-cover transition group-hover:scale-[1.02]"
-          sizes="(max-width:768px) 100vw, 33vw"
-        />
+      <Link
+        href={`/produtos/${product.slug}`}
+        className="relative aspect-[5/4] bg-stone-100 p-2"
+      >
+        <span className="relative block h-full w-full overflow-hidden rounded-xl">
+          <Image
+            src={imageSrc}
+            alt={product.name}
+            fill
+            className="object-contain"
+            sizes="(max-width:768px) 100vw, 33vw"
+          />
+        </span>
       </Link>
       <div className="flex flex-1 flex-col gap-2 p-3.5">
         {badges.length > 0 ? (

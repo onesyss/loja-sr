@@ -36,12 +36,12 @@ export default function CarrinhoPage() {
             key={lineId}
             className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center"
           >
-            <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+            <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-stone-100 p-1">
               <Image
                 src={getDisplayImage(product, 0, color ?? null)}
                 alt={product.name}
                 fill
-                className="object-cover"
+                className="object-contain"
                 sizes="128px"
               />
             </div>

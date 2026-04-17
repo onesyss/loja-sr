@@ -9,6 +9,7 @@ import { getLocalProductBySlug } from "@/lib/local-products";
 import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
 import { formatBRL } from "@/lib/money";
 import { getDisplayImage, getPlaceholderImage } from "@/lib/product-images";
+import { ProductImageLightbox } from "@/components/ProductImageLightbox";
 import {
   getProductColorGrid,
   getProductOptions,
@@ -23,6 +24,7 @@ export default function ProdutoPage() {
   const [selectedSize, setSelectedSize] = useState<number | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -94,19 +96,29 @@ export default function ProdutoPage() {
       </Link>
       <div className="mt-8 grid gap-10 lg:grid-cols-2">
         <div>
-          <div className="relative aspect-square overflow-hidden rounded-2xl bg-stone-100">
-            <Image
-              src={
-                selectedImage ||
-                getDisplayImage(product, 0, selectedColor || null)
-              }
-              alt={product.name}
-              fill
-              className="object-cover"
-              priority
-              sizes="(max-width:1024px) 100vw, 50vw"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="group relative aspect-square w-full overflow-hidden rounded-2xl bg-stone-100 p-3 text-left ring-0 transition hover:ring-2 hover:ring-violet-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            aria-label="Ampliar foto do produto"
+          >
+            <span className="relative block h-full w-full">
+              <Image
+                src={
+                  selectedImage ||
+                  getDisplayImage(product, 0, selectedColor || null)
+                }
+                alt={product.name}
+                fill
+                className="object-contain"
+                priority
+                sizes="(max-width:1024px) 100vw, 50vw"
+              />
+            </span>
+            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-stone-900/65 px-2.5 py-1 text-[11px] font-medium text-white opacity-0 transition group-hover:opacity-100">
+              Clique para ampliar
+            </span>
+          </button>
           {galleryImages.length > 1 ? (
             <div className="mt-3 grid grid-cols-3 gap-3">
               {galleryImages.slice(0, 3).map((image, index) => (
@@ -114,7 +126,7 @@ export default function ProdutoPage() {
                   key={`${image}-${index}`}
                   type="button"
                   onClick={() => setSelectedImage(image)}
-                  className={`relative aspect-square overflow-hidden rounded-lg border ${
+                  className={`relative aspect-square overflow-hidden rounded-lg border bg-stone-50 p-1 ${
                     selectedImage === image
                       ? "border-violet-600"
                       : "border-stone-200"
@@ -124,7 +136,7 @@ export default function ProdutoPage() {
                     src={image}
                     alt={`${product.name} - imagem ${index + 1}`}
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     sizes="120px"
                   />
                 </button>
@@ -238,6 +250,16 @@ export default function ProdutoPage() {
           </div>
         </div>
       </div>
+
+      <ProductImageLightbox
+        src={
+          selectedImage ||
+          getDisplayImage(product, 0, selectedColor || null)
+        }
+        alt={product.name}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
     </main>
   );
 }

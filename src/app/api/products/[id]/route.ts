@@ -79,9 +79,22 @@ export async function PUT(
     .maybeSingle();
 
   if (error) {
-    const isDuplicate = (error.message || "").toLowerCase().includes("duplicate");
+    const raw = (error.message || "").toLowerCase();
+    const code = (error as { code?: string }).code;
+    const isDuplicate =
+      code === "23505" ||
+      raw.includes("duplicate") ||
+      raw.includes("unique") ||
+      raw.includes("products_slug_key");
+    const isCheck =
+      code === "23514" || raw.includes("check constraint") || raw.includes("violates check");
+    const message = isDuplicate
+      ? "Já existe outro produto com este slug. Escolha outro slug."
+      : isCheck
+        ? "Algum valor não é aceito pelo banco (ex.: categoria ou campos obrigatórios). Confira os dados."
+        : "Falha ao atualizar produto.";
     return NextResponse.json(
-      { error: isDuplicate ? "Slug já existe." : "Falha ao atualizar produto." },
+      { error: message },
       { status: isDuplicate ? 409 : 500 },
     );
   }

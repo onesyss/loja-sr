@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { upsertLocalProduct } from "@/lib/local-products";
 import { slugify } from "@/lib/slug";
 import {
@@ -11,6 +11,10 @@ import {
   inferProductCategoryFromText,
   styleFromCategory,
 } from "@/lib/product-category";
+import {
+  PRODUCT_IMAGE_MAX_BYTES,
+  PRODUCT_IMAGE_MAX_MB,
+} from "@/lib/product-image-upload";
 import type { ProductCategory, ProductRow } from "@/types/database";
 
 type Props = {
@@ -53,17 +57,19 @@ export function ProductForm({ initial }: Props) {
   const [stock, setStock] = useState(String(initial?.stock ?? 0));
   const [active, setActive] = useState(initial?.active ?? true);
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  function fileToDataUrl(selected: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ""));
-      reader.onerror = () => reject(new Error("Falha ao processar imagem."));
-      reader.readAsDataURL(selected);
-    });
-  }
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   function onNameChange(v: string) {
     setName(v);
@@ -123,13 +129,27 @@ export function ProductForm({ initial }: Props) {
     let image_url = initial?.image_url ?? null;
 
     if (file) {
-      try {
-        image_url = await fileToDataUrl(file);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Falha ao carregar imagem.");
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload/product-image", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+      });
+      const json: { url?: string; error?: string } = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          typeof json.error === "string" ? json.error : "Falha ao enviar imagem.",
+        );
         setLoading(false);
         return;
       }
+      if (!json.url) {
+        setError("Resposta inválida do servidor.");
+        setLoading(false);
+        return;
+      }
+      image_url = json.url;
     }
 
     const cleanSlug = slug.trim() || slugify(name);
@@ -158,8 +178,8 @@ export function ProductForm({ initial }: Props) {
       initial?.id,
     );
 
-    if (!saved) {
-      setError("Não foi possível salvar. Verifique se o slug já existe.");
+    if (!saved.ok) {
+      setError(saved.error);
       setLoading(false);
       return;
     }
@@ -277,24 +297,76 @@ export function ProductForm({ initial }: Props) {
           </p>
         </div>
       </div>
-      <div>
-        <label
-          className="block text-sm font-medium text-stone-700"
-          htmlFor="extra_image_urls"
-        >
-          Imagens adicionais (produto)
-        </label>
-        <input
-          id="extra_image_urls"
-          placeholder="https://..., https://..."
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-          value={extraImageUrls}
-          onChange={(e) => setExtraImageUrls(e.target.value)}
-        />
-        <p className="mt-1 text-xs text-stone-500">
-          Coloque até 2 URLs separadas por vírgula para aparecer na página do
-          produto.
-        </p>
+      <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
+        <p className="text-sm font-semibold text-stone-900">Imagens do produto</p>
+
+        <div className="mt-4">
+          <span className="block text-sm font-medium text-stone-700">Foto principal</span>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-violet-700">
+              Escolher imagem
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(e) => {
+                  const selected = e.target.files?.[0] ?? null;
+                  if (selected && selected.size > PRODUCT_IMAGE_MAX_BYTES) {
+                    setError(
+                      `Arquivo acima de ${PRODUCT_IMAGE_MAX_MB} MB. Escolha uma imagem menor.`,
+                    );
+                    setFile(null);
+                    e.target.value = "";
+                    return;
+                  }
+                  setError(null);
+                  setFile(selected);
+                }}
+              />
+            </label>
+            <span className="text-sm text-stone-600">
+              {file
+                ? file.name
+                : editing && initial?.image_url
+                  ? "Imagem atual será mantida (ou escolha outra)"
+                  : "Opcional no cadastro"}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-stone-500">
+            Até {PRODUCT_IMAGE_MAX_MB} MB · JPEG, PNG ou WebP
+          </p>
+          {(previewUrl || (editing && initial?.image_url && !file)) ? (
+            <div className="mt-3 flex">
+              <div className="relative h-28 w-36 overflow-hidden rounded-lg border border-stone-200 bg-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl ?? initial?.image_url ?? ""}
+                  alt=""
+                  className="h-full w-full object-contain p-1"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-6 border-t border-stone-200 pt-4">
+          <label
+            className="block text-sm font-medium text-stone-700"
+            htmlFor="extra_image_urls"
+          >
+            Outras fotos (links)
+          </label>
+          <input
+            id="extra_image_urls"
+            placeholder="https://..., https://..."
+            className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
+            value={extraImageUrls}
+            onChange={(e) => setExtraImageUrls(e.target.value)}
+          />
+          <p className="mt-1 text-xs text-stone-500">
+            Até 2 URLs separadas por vírgula — galeria na página do produto.
+          </p>
+        </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -369,18 +441,6 @@ export function ProductForm({ initial }: Props) {
         <label htmlFor="active" className="text-sm text-stone-700">
           Ativo na loja
         </label>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-stone-700" htmlFor="image">
-          Imagem {editing ? "(opcional — substitui a atual)" : ""}
-        </label>
-        <input
-          id="image"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="mt-1 w-full text-sm"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
       </div>
       {error ? (
         <p className="text-sm text-red-700" role="alert">
