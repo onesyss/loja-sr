@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PasswordInputWithToggle } from "@/components/PasswordInputWithToggle";
 import { clearLegacyAdminStorage } from "@/lib/admin-auth";
-import { tryPromoteAdminFromSignup, fetchProfileIsAdmin } from "@/lib/admin-role";
 import { userFacingAuthMessage } from "@/lib/auth-user-message";
 import { createClient } from "@/lib/supabase/client";
 
@@ -56,18 +55,6 @@ function AdminLoginForm() {
       return;
     }
 
-    let isAdmin = await fetchProfileIsAdmin(supabase, data.user.id);
-    if (!isAdmin) {
-      await tryPromoteAdminFromSignup();
-      isAdmin = await fetchProfileIsAdmin(supabase, data.user.id);
-    }
-    if (!isAdmin) {
-      setLoading(false);
-      router.push("/admin/sem-permissao");
-      router.refresh();
-      return;
-    }
-
     clearLegacyAdminStorage();
     setLoading(false);
     router.push(redirect);
@@ -80,7 +67,7 @@ function AdminLoginForm() {
         <h1 className="text-xl font-semibold text-stone-900">Entrar · Área administrativa</h1>
         <p className="mt-1 text-sm text-violet-600">SR CALÇADOS · Moda a seus pés</p>
         <p className="mt-3 text-sm text-stone-600">
-          Acesso exclusivo para quem gerencia produtos e pedidos.
+          Entre com a mesma conta da loja para gerenciar produtos e pedidos.
         </p>
         {avisoTopo ? (
           <p

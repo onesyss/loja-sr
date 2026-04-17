@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { tryPromoteAdminFromSignup, fetchProfileIsAdmin } from "@/lib/admin-role";
 import { createClient } from "@/lib/supabase/client";
 
 export function AdminSessionGuard({ children }: { children: React.ReactNode }) {
@@ -24,19 +23,6 @@ export function AdminSessionGuard({ children }: { children: React.ReactNode }) {
 
       if (error || !user) {
         router.replace(`/admin/login?redirect=${encodeURIComponent(pathname || "/admin")}`);
-        return;
-      }
-
-      let isAdmin = await fetchProfileIsAdmin(supabase, user.id);
-      if (!isAdmin) {
-        await tryPromoteAdminFromSignup();
-        isAdmin = await fetchProfileIsAdmin(supabase, user.id);
-      }
-
-      if (cancelled) return;
-
-      if (!isAdmin) {
-        router.replace("/admin/sem-permissao");
         return;
       }
 
