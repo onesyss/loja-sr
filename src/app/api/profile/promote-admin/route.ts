@@ -35,6 +35,21 @@ export async function POST() {
     return NextResponse.json({ ok: true, promoted: false });
   }
 
+  if (!prof) {
+    const { error: insErr } = await svc.from("profiles").insert({
+      id: user.id,
+      role: "admin",
+      preferences: {},
+    });
+    if (insErr) {
+      return NextResponse.json(
+        { error: "Falha ao criar perfil de gestor." },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true, promoted: true });
+  }
+
   const { error: upErr } = await svc
     .from("profiles")
     .update({ role: "admin" })

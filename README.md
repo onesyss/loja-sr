@@ -77,13 +77,23 @@ Acesse `http://localhost:3000` para loja e `http://localhost:3000/admin/login` p
 
 ## Deploy na Vercel
 
+O **GitHub só envia o código**. O **banco continua no Supabase**; o deploy **não** copia `.env.local` nem migra dados.
+
 1. Importe o repositorio na Vercel.
-2. Configure as mesmas variaveis do `.env.local`.
-3. Defina `NEXT_PUBLIC_APP_URL` com a URL publica do deploy (este projeto: `https://loja-sr.vercel.app`).
+2. **Settings → Environment Variables** na Vercel: cadastre **manualmente** as mesmas chaves do `.env.local` (Production e, se quiser, Preview):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` **ou** `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (obrigatória para `/api/products` ler/gravar no servidor)
+   - `NEXT_PUBLIC_APP_URL` = `https://loja-sr.vercel.app` (ou seu domínio)
+   - `MERCADOPAGO_ACCESS_TOKEN` (se usar checkout MP)
+3. **Redeploy** depois de salvar as variáveis (Deployments → … → Redeploy), ou faça um commit novo.
 4. No Supabase, inclua `https://loja-sr.vercel.app/auth/callback` nas Redirect URLs (ver `docs/supabase-conexao.md`).
+
+Sem `SUPABASE_SERVICE_ROLE_KEY` na Vercel, a API de produtos falha e a loja em produção **não** mostra os itens do Supabase (vitrine vazia ou erro), até você configurar o ambiente.
 
 ## Solucao de problemas rapida
 
 - **Erro de chave do Supabase:** revise `NEXT_PUBLIC_SUPABASE_URL` e a chave pública (`NEXT_PUBLIC_SUPABASE_ANON_KEY` ou `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`).
+- **Vercel não mostra os mesmos produtos que no PC:** confira **todas** as variáveis na Vercel (principalmente `SUPABASE_SERVICE_ROLE_KEY`) e redeploy. O Git não envia `.env.local`.
 - **Admin sem acesso:** confirme que o usuario esta em `profiles` com `role = 'admin'`.
 - **Webhook nao atualiza pedido:** revise `MERCADOPAGO_ACCESS_TOKEN` e URL publica da aplicacao.

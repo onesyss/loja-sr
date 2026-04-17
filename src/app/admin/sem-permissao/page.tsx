@@ -2,10 +2,41 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { fetchProfileIsAdmin, tryPromoteAdminFromSignup } from "@/lib/admin-role";
 import { createClient } from "@/lib/supabase/client";
 
 export default function AdminSemPermissaoPage() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function tryEnter() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+
+      await tryPromoteAdminFromSignup();
+      const isAdmin = await fetchProfileIsAdmin(supabase, user.id);
+      if (cancelled) return;
+      if (isAdmin) {
+        router.replace("/admin");
+        router.refresh();
+        return;
+      }
+      setChecking(false);
+    }
+
+    void tryEnter();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSair() {
     const supabase = createClient();
@@ -14,47 +45,69 @@ export default function AdminSemPermissaoPage() {
     router.refresh();
   }
 
+  async function handleTentarNovamente() {
+    setRetrying(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setRetrying(false);
+      router.push("/admin/login");
+      return;
+    }
+    await tryPromoteAdminFromSignup();
+    const isAdmin = await fetchProfileIsAdmin(supabase, user.id);
+    setRetrying(false);
+    if (isAdmin) {
+      router.replace("/admin");
+      router.refresh();
+    }
+  }
+
+  if (checking) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-stone-100 px-4 py-10">
+        <p className="text-sm text-stone-500">Verificando permissão…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-stone-100 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl border border-amber-200/90 bg-white p-8 shadow-sm">
         <p className="text-sm font-medium text-amber-800">Acesso restrito</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight text-stone-900">
-          Sua conta ainda não pode gerenciar a loja
+          Esta conta não é de gestão da loja
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-stone-600">
-          Você entrou com sucesso, mas este perfil ainda não está autorizado a alterar produtos e
-          pedidos no painel. Isso é normal após um cadastro novo.
+          Quem vai administrar precisa <strong className="text-stone-800">criar a conta pelo painel</strong>, em{" "}
+          <strong className="text-stone-800">Criar conta</strong> na área administrativa — assim o sistema marca o
+          cadastro como gestor.
         </p>
-        <p className="mt-4 text-sm leading-relaxed text-stone-600">
-          Este e-mail entrou como visitante da loja ou foi criado fora do cadastro de gestão. Para
-          acessar o painel, use a opção <strong className="text-stone-800">Criar conta</strong> na área
-          administrativa ou peça ajuda a quem cuida do site.
+        <p className="mt-3 text-sm leading-relaxed text-stone-600">
+          Se a pessoa se cadastrou só na loja (como cliente), use outro e-mail ou peça para se registrar em{" "}
+          <span className="font-medium text-stone-800">/admin/cadastro</span> no site publicado.
         </p>
-        <details className="mt-6 rounded-xl border border-stone-200 bg-stone-50/90 text-left">
-          <summary className="cursor-pointer list-inside px-4 py-3 text-sm font-medium text-stone-800 marker:text-violet-600">
-            Se você é quem configura a loja — liberar seu próprio acesso
-          </summary>
-          <div className="border-t border-stone-200 px-4 py-3 text-sm text-stone-600">
-            <p>
-              No painel do banco de dados do projeto (onde a loja está ligada), abra{" "}
-              <strong className="text-stone-800">Autenticação → Usuários</strong>, copie o ID do seu
-              usuário e rode no <strong className="text-stone-800">Editor SQL</strong>:
-            </p>
-            <pre className="mt-3 overflow-x-auto rounded-lg bg-stone-900/90 p-3 text-xs leading-relaxed text-stone-100">
-              {`update public.profiles
-set role = 'admin'
-where id = 'COLE_AQUI_O_ID_DO_USUARIO';`}
-            </pre>
-            <p className="mt-3 text-xs text-stone-500">
-              Depois volte aqui, use &quot;Sair&quot; e entre de novo com o mesmo e-mail e senha.
-            </p>
-          </div>
-        </details>
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
+            disabled={retrying}
+            onClick={() => void handleTentarNovamente()}
+            className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-60"
+          >
+            {retrying ? "Verificando…" : "Já cadastrei no painel — tentar de novo"}
+          </button>
+          <Link
+            href="/admin/cadastro"
+            className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-2.5 text-sm font-medium text-violet-900 transition hover:bg-violet-100"
+          >
+            Ir para criar conta (gestor)
+          </Link>
+          <button
+            type="button"
             onClick={() => void handleSair()}
-            className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700"
+            className="rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
           >
             Sair e usar outra conta
           </button>
