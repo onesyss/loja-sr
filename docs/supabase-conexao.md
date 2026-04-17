@@ -180,3 +180,19 @@ Resumo: **não dá para zerar o rate limit**; dá para **subir valores**, **conf
 ---
 
 Depois que estiver tudo verde, o fluxo normal é: manter `.env.local` só na sua máquina, repetir as mesmas variáveis no painel do host (ex.: Vercel) em produção, e nunca commitar chaves `service_role`.
+
+### GitHub / Vercel e o banco de dados
+
+- **Push no GitHub** só atualiza **código**. Não envia variáveis de ambiente nem altera o Supabase.
+- Na **Vercel** → **Settings** → **Environment Variables**, você precisa colar **as mesmas** variáveis do `.env.local` (em especial `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`). Sem isso, o build até pode passar, mas `/api/products` no ar não consegue falar com o banco.
+- Os **produtos** vêm sempre do **mesmo projeto Supabase** configurado nessas variáveis. Cadastros no admin em produção gravam nesse projeto; o repositório Git não “leva” tabela nenhuma.
+- Depois de alterar variáveis na Vercel, faça um **Redeploy** do último deployment para garantir que o runtime carregue os valores novos.
+
+#### Checklist: produção na Vercel “não bate” com o banco / localhost
+
+1. **Escopo das variáveis** — Na Vercel, cada variável pode estar só em **Production**, só em **Preview**, ou em **Development**. Se o deploy de produção (`main` → domínio principal) não tiver as chaves em **Production**, o app no ar usa valores vazios/errados. Previews de PR usam **Preview**; confira se copiou as mesmas chaves para o escopo que você está testando.
+2. **Lista mínima** — `NEXT_PUBLIC_SUPABASE_URL`, **uma** chave pública (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` *ou* `NEXT_PUBLIC_SUPABASE_ANON_KEY`), `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL` (URL exata do deploy, ex.: `https://seu-projeto.vercel.app` ou domínio customizado **com** `https://`).
+3. **Mesmo projeto Supabase** — Confira no painel Supabase (**Project Settings → API**) se a URL e as chaves coladas na Vercel são do **mesmo** projeto em que você rodou o `schema.sql` e cadastrou dados.
+4. **Redeploy** — Depois de salvar variáveis, **Redeploy** (Deployments → ⋮ → Redeploy). Builds antigos não “puxam” env novos sozinhos no runtime.
+5. **Teste rápido** — Abra `https://SEU-DOMINIO/api/products`: deve retornar JSON (mesmo que `[]`). **500** costuma indicar `SUPABASE_SERVICE_ROLE_KEY` ou URL ausente/errada no ambiente desse deploy.
+6. **Auth / redirects** — Se o problema for login ou confirmação de e-mail no ar, em **Supabase → Authentication → URL Configuration** inclua `https://SEU-DOMINIO/auth/callback` (e **Site URL** coerente com produção).

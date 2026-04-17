@@ -39,8 +39,11 @@ function ensureProductCodes(products: ProductRow[]) {
   });
 }
 
-/** Mocks só quando a API falha (dev/offline). Resposta 200 da API = só Supabase. */
-function fallbackProducts() {
+/** Mocks só em desenvolvimento quando a API falha. Em produção (ex.: Vercel sem env) retorna vazio — evita mostrar dados demo no lugar do banco. */
+function fallbackProducts(): ProductRow[] {
+  if (process.env.NODE_ENV === "production") {
+    return [];
+  }
   return ensureProductCodes([...mockProducts]);
 }
 
