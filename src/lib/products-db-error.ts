@@ -11,7 +11,7 @@ export function messageFromProductsPostgrestError(error: PostgrestError, op: Pro
     (raw.includes("column") && raw.includes("does not exist")) ||
     raw.includes("schema cache")
   ) {
-    return "A base de dados precisa de migração: no Supabase (SQL Editor) execute as alterações em supabase/schema.sql ou supabase/migrate-product-brand.sql (colunas em products, por exemplo color_linked_images e brand).";
+    return "A base de dados precisa de migração: no Supabase → SQL Editor, abra o ficheiro supabase/executar-no-supabase-produtos.sql do projeto, cole tudo e execute (Run). Pode repetir sem problema.";
   }
 
   if (code === "23505" || raw.includes("duplicate") || raw.includes("unique")) {

@@ -1,6 +1,9 @@
 -- =============================================================================
 -- Loja SR Calçados — atualizar tabela public.products (Supabase → SQL Editor)
 --
+-- Quando aparecer erro do tipo «coluna ... não existe» ou «schema cache» ao
+-- listar/gravar produtos, execute ESTE ficheiro completo.
+--
 -- Como usar: SQL Editor → "+ New query" → colar este ficheiro inteiro → Run.
 -- É seguro repetir: todas as colunas usam IF NOT EXISTS.
 -- =============================================================================
