@@ -23,6 +23,8 @@ import type { ColorLinkedImageEntry, ProductCategory, ProductRow } from "@/types
 
 const MAX_GALLERY = 5;
 const MAX_COLORS = 5;
+/** Por linha da galeria: 1 principal + até 2 extras. */
+const MAX_PHOTOS_PER_ROW = 3;
 
 function newRowKey() {
   return globalThis.crypto?.randomUUID?.() ?? `r-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -71,7 +73,13 @@ type GalleryRow = {
   key: string;
   url: string;
   file: File | null;
+  extraUrl1: string;
+  extraUrl2: string;
+  extraFile1: File | null;
+  extraFile2: File | null;
   colors: string[];
+  /** Numerações para esta linha (cores marcadas). */
+  sizesText: string;
 };
 
 function rowsFromProduct(p: ProductRow | null | undefined): GalleryRow[] {
@@ -82,15 +90,26 @@ function rowsFromProduct(p: ProductRow | null | undefined): GalleryRow[] {
       key: `k-${i}-${e.url.slice(-12)}`,
       url: e.url,
       file: null,
+      extraUrl1: e.extra_urls?.[0] ?? "",
+      extraUrl2: e.extra_urls?.[1] ?? "",
+      extraFile1: null,
+      extraFile2: null,
       colors: [...e.colors],
+      sizesText: (e.sizes ?? []).join(", "),
     }));
   }
   const legacy = getProductUploadedImageUrls(p);
+  const legacySizesFallback = (p.available_sizes ?? []).join(", ");
   return legacy.map((u, i) => ({
     key: `leg-${i}-${u.slice(-8)}`,
     url: u,
     file: null,
+    extraUrl1: "",
+    extraUrl2: "",
+    extraFile1: null,
+    extraFile2: null,
     colors: [] as string[],
+    sizesText: i === 0 ? legacySizesFallback : "",
   }));
 }
 
@@ -112,9 +131,6 @@ export function ProductForm({ initial }: Props) {
       inferProductCategoryFromText(
         `${initial?.name ?? ""} ${initial?.description ?? ""}`,
       ),
-  );
-  const [availableSizes, setAvailableSizes] = useState(
-    initial?.available_sizes?.join(", ") ?? "",
   );
   const [paletteEntries, setPaletteEntries] = useState<PaletteEntry[]>(() =>
     initialPaletteEntries(initial),
@@ -189,10 +205,12 @@ export function ProductForm({ initial }: Props) {
       setLoading(false);
       return;
     }
-    const parsedSizes = availableSizes
-      .split(",")
-      .map((value) => Number.parseInt(value.trim(), 10))
-      .filter((value) => Number.isFinite(value) && value > 0);
+    const parseSizesLine = (line: string) =>
+      line
+        .split(",")
+        .map((value) => Number.parseInt(value.trim(), 10))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
     const parsedColors: string[] = [];
     {
       const seen = new Set<string>();
@@ -208,15 +226,9 @@ export function ProductForm({ initial }: Props) {
     }
     const allowedColor = new Set(parsedColors.map((c) => c.toLowerCase()));
 
-    if (availableSizes.trim() && parsedSizes.length === 0) {
-      setError("Numerações inválidas. Use números separados por vírgula.");
-      setLoading(false);
-      return;
-    }
-
     const usedRows = galleryRows.filter((r) => r.url.trim() || r.file);
     if (usedRows.length > MAX_GALLERY) {
-      setError(`Máximo ${MAX_GALLERY} fotos.`);
+      setError(`Máximo ${MAX_GALLERY} grupos de fotos.`);
       setLoading(false);
       return;
     }
@@ -248,6 +260,25 @@ export function ProductForm({ initial }: Props) {
 
     const built: ColorLinkedImageEntry[] = [];
     for (const row of usedRows.slice(0, MAX_GALLERY)) {
+      const hasPrimary = Boolean(row.url.trim() || row.file);
+      const hasExtraOnly =
+        !hasPrimary &&
+        (row.extraUrl1.trim() ||
+          row.extraFile1 ||
+          row.extraUrl2.trim() ||
+          row.extraFile2);
+      if (hasExtraOnly) {
+        setError("Preencha a 1.ª foto do grupo antes da 2.ª ou 3.ª.");
+        setLoading(false);
+        return;
+      }
+      const hasSlot1 = Boolean(row.extraUrl1.trim() || row.extraFile1);
+      const hasSlot2 = Boolean(row.extraUrl2.trim() || row.extraFile2);
+      if (hasSlot2 && !hasSlot1) {
+        setError("Preencha a foto 2 antes da foto 3.");
+        setLoading(false);
+        return;
+      }
       let url = row.url.trim();
       if (row.file) {
         const u = await uploadOne(row.file);
@@ -258,11 +289,60 @@ export function ProductForm({ initial }: Props) {
         url = u;
       }
       if (!url) continue;
+
+      let u1 = row.extraUrl1.trim();
+      if (row.extraFile1) {
+        const up = await uploadOne(row.extraFile1);
+        if (!up) {
+          setLoading(false);
+          return;
+        }
+        u1 = up;
+      }
+      let u2 = row.extraUrl2.trim();
+      if (row.extraFile2) {
+        const up = await uploadOne(row.extraFile2);
+        if (!up) {
+          setLoading(false);
+          return;
+        }
+        u2 = up;
+      }
+      const imageUrls = [url, u1, u2].filter(Boolean);
+      if (imageUrls.length > MAX_PHOTOS_PER_ROW) {
+        setError(`No máximo ${MAX_PHOTOS_PER_ROW} fotos por grupo.`);
+        setLoading(false);
+        return;
+      }
+
+      const rowSizesParsed = parseSizesLine(row.sizesText);
+      if (row.sizesText.trim() && rowSizesParsed.length === 0) {
+        setError("Numerações deste grupo inválidas. Use números separados por vírgula.");
+        setLoading(false);
+        return;
+      }
+
       const rowColors =
         row.colors.length === 0
           ? []
           : row.colors.filter((c) => allowedColor.has(c.trim().toLowerCase()));
-      built.push({ url, colors: rowColors });
+      const entry: ColorLinkedImageEntry = { url: imageUrls[0], colors: rowColors };
+      if (imageUrls.length > 1) entry.extra_urls = imageUrls.slice(1);
+      if (rowSizesParsed.length > 0) entry.sizes = rowSizesParsed;
+      built.push(entry);
+    }
+
+    const unionSizes: number[] = [];
+    for (const e of built) {
+      if (e.sizes?.length) unionSizes.push(...e.sizes);
+    }
+    const uniqueSortedSizes = [...new Set(unionSizes)].sort((a, b) => a - b);
+    if (built.length > 0 && uniqueSortedSizes.length === 0) {
+      setError(
+        "Indique numerações em pelo menos um grupo de fotos (campo «Numerações deste grupo»).",
+      );
+      setLoading(false);
+      return;
     }
 
     const image_url = built[0]?.url ?? null;
@@ -286,7 +366,7 @@ export function ProductForm({ initial }: Props) {
         discount_percent: discountNum,
         max_installments: installmentsNum,
         stock: stockNum,
-        available_sizes: parsedSizes.length > 0 ? parsedSizes : null,
+        available_sizes: uniqueSortedSizes.length > 0 ? uniqueSortedSizes : null,
         available_colors: parsedColors.length > 0 ? parsedColors : null,
         extra_image_urls,
         color_linked_images,
@@ -311,7 +391,17 @@ export function ProductForm({ initial }: Props) {
     if (galleryRows.length >= MAX_GALLERY) return;
     setGalleryRows((rows) => [
       ...rows,
-      { key: newRowKey(), url: "", file: null, colors: [] },
+      {
+        key: newRowKey(),
+        url: "",
+        file: null,
+        extraUrl1: "",
+        extraUrl2: "",
+        extraFile1: null,
+        extraFile2: null,
+        colors: [],
+        sizesText: "",
+      },
     ]);
   }
 
@@ -486,22 +576,6 @@ export function ProductForm({ initial }: Props) {
           ))}
         </select>
       </div>
-      <div>
-        <label
-          className="block text-sm font-medium text-stone-700"
-          htmlFor="available_sizes"
-        >
-          Numerações disponíveis
-        </label>
-        <input
-          id="available_sizes"
-          placeholder="34, 35, 36, 37"
-          className="mt-1 w-full max-w-xl rounded-lg border border-stone-300 px-3 py-2"
-          value={availableSizes}
-          onChange={(e) => setAvailableSizes(e.target.value)}
-        />
-        <p className="mt-1 text-xs text-stone-500">Separe por vírgula. Ex.: 37, 38, 39</p>
-      </div>
       <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-stone-900">Cores do produto (até {MAX_COLORS})</p>
@@ -574,8 +648,9 @@ export function ProductForm({ initial }: Props) {
         </div>
         <p className="mt-2 text-xs text-stone-500">
           Envio por ficheiro apenas (JPEG/PNG/WebP, até {PRODUCT_IMAGE_MAX_MB} MB). Arraste pelo ícone
-          ⋮⋮ para mudar a ordem das fotos na galeria. A 1.ª foto é a principal. Marque em que cores cada
-          imagem aparece; sem marcação = todas as cores.
+          ⋮⋮ para mudar a ordem dos grupos. Até {MAX_PHOTOS_PER_ROW} fotos por grupo (principal + extras).
+          Marque em que cores cada grupo aparece; sem marcação = todas as cores. Indique as numerações
+          em cada grupo (em pelo menos um grupo deve haver números).
         </p>
 
         <div className="mt-4 space-y-4">
@@ -603,7 +678,7 @@ export function ProductForm({ initial }: Props) {
                       ⋮⋮
                     </span>
                   </button>
-                  <span className="text-xs font-medium text-stone-500">Foto {index + 1}</span>
+                  <span className="text-xs font-medium text-stone-500">Grupo de fotos {index + 1}</span>
                 </div>
                 <button
                   type="button"
@@ -642,6 +717,81 @@ export function ProductForm({ initial }: Props) {
               {row.file ? (
                 <p className="mt-1 text-xs text-stone-600">Ficheiro: {row.file.name}</p>
               ) : null}
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-stone-100 bg-stone-50/80 p-2">
+                  <p className="text-xs font-medium text-stone-600">Foto 2 (opcional)</p>
+                  <label className="mt-1 inline-flex cursor-pointer items-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-100">
+                    {row.extraUrl1.trim() && !row.extraFile1 ? "Substituir imagem" : "Escolher imagem"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        if (f && f.size > PRODUCT_IMAGE_MAX_BYTES) {
+                          setError(
+                            `Arquivo acima de ${PRODUCT_IMAGE_MAX_MB} MB. Escolha uma imagem menor.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        setError(null);
+                        updateRow(row.key, { extraFile1: f, extraUrl1: f ? "" : row.extraUrl1 });
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {row.extraFile1 ? (
+                    <p className="mt-1 text-xs text-stone-600">{row.extraFile1.name}</p>
+                  ) : row.extraUrl1.trim() ? (
+                    <p className="mt-1 text-xs text-stone-500">Imagem atual no servidor.</p>
+                  ) : null}
+                </div>
+                <div className="rounded-lg border border-stone-100 bg-stone-50/80 p-2">
+                  <p className="text-xs font-medium text-stone-600">Foto 3 (opcional)</p>
+                  <label className="mt-1 inline-flex cursor-pointer items-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800 hover:bg-violet-100">
+                    {row.extraUrl2.trim() && !row.extraFile2 ? "Substituir imagem" : "Escolher imagem"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        if (f && f.size > PRODUCT_IMAGE_MAX_BYTES) {
+                          setError(
+                            `Arquivo acima de ${PRODUCT_IMAGE_MAX_MB} MB. Escolha uma imagem menor.`,
+                          );
+                          e.target.value = "";
+                          return;
+                        }
+                        setError(null);
+                        updateRow(row.key, { extraFile2: f, extraUrl2: f ? "" : row.extraUrl2 });
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {row.extraFile2 ? (
+                    <p className="mt-1 text-xs text-stone-600">{row.extraFile2.name}</p>
+                  ) : row.extraUrl2.trim() ? (
+                    <p className="mt-1 text-xs text-stone-500">Imagem atual no servidor.</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3">
+                <label
+                  className="text-xs font-medium text-stone-600"
+                  htmlFor={`sizes-${row.key}`}
+                >
+                  Numerações deste grupo
+                </label>
+                <input
+                  id={`sizes-${row.key}`}
+                  placeholder="Ex.: 35, 36, 37"
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  value={row.sizesText}
+                  onChange={(e) => updateRow(row.key, { sizesText: e.target.value })}
+                />
+              </div>
               <div className="mt-3 border-t border-stone-100 pt-2">
                 <p className="text-xs font-medium text-stone-600">Mostrar quando a cor for:</p>
                 <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
@@ -665,10 +815,10 @@ export function ProductForm({ initial }: Props) {
                       <label key={c} className="flex cursor-pointer items-center gap-1.5 text-sm">
                         <input
                           type="checkbox"
-                    checked={row.colors.some(
-                      (rc) => rc.trim().toLowerCase() === c.trim().toLowerCase(),
-                    )}
-                    onChange={() => toggleRowColor(row.key, c)}
+                          checked={row.colors.some(
+                            (rc) => rc.trim().toLowerCase() === c.trim().toLowerCase(),
+                          )}
+                          onChange={() => toggleRowColor(row.key, c)}
                         />
                         {c}
                       </label>
@@ -681,9 +831,19 @@ export function ProductForm({ initial }: Props) {
                 )}
               </div>
               {row.url.trim() && !row.file ? (
-                <div className="mt-2 h-20 w-24 overflow-hidden rounded border border-stone-100 bg-stone-50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={row.url} alt="" className="h-full w-full object-contain p-0.5" />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[row.url, row.extraUrl1, row.extraUrl2].map(
+                    (u, i) =>
+                      u.trim() ? (
+                        <div
+                          key={`${row.key}-pv-${i}`}
+                          className="h-20 w-24 overflow-hidden rounded border border-stone-100 bg-stone-50"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" className="h-full w-full object-contain p-0.5" />
+                        </div>
+                      ) : null,
+                  )}
                 </div>
               ) : row.file ? (
                 <p className="mt-2 text-xs text-stone-500">Pré-visualização após gravar.</p>

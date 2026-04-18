@@ -32,6 +32,38 @@ function getBaseColorsForStyle(style: string) {
     : ["Preto", "Marrom", "Bege", "Caramelo"];
 }
 
+/**
+ * Numerações mostradas na PDP para a cor escolhida.
+ * Se alguma entrada de `color_linked_images` tiver `sizes`, usa esses valores (e `available_sizes`
+ * nas entradas sem `sizes`). Caso contrário, comportamento igual a `getProductOptions().sizes`.
+ */
+export function getProductSizesForColor(
+  product: ProductRow,
+  selectedColor: string | null | undefined,
+): number[] {
+  const baseline = getProductOptions(product).sizes;
+  const entries = normalizeColorLinkedImages(product.color_linked_images);
+  const hasPerEntrySizes = entries.some((e) => (e.sizes?.length ?? 0) > 0);
+  if (entries.length === 0 || !hasPerEntrySizes) {
+    return baseline;
+  }
+
+  const sel = (selectedColor ?? "").trim().toLowerCase();
+  if (!sel) return baseline;
+
+  const out: number[] = [];
+  for (const e of entries) {
+    const cols = e.colors.map((c) => c.trim().toLowerCase()).filter(Boolean);
+    const forAllColors = cols.length === 0;
+    const forThisColor = cols.includes(sel);
+    if (!forAllColors && !forThisColor) continue;
+    const rowSizes = (e.sizes?.length ?? 0) > 0 ? (e.sizes as number[]) : baseline;
+    out.push(...rowSizes);
+  }
+  if (out.length === 0) return baseline;
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
 export function getProductOptions(product: ProductRow): ProductOptions {
   const manualSizes = (product.available_sizes ?? [])
     .filter((size) => Number.isFinite(size))

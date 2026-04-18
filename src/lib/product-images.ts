@@ -98,7 +98,19 @@ function getImageGroup(product: Pick<ProductRow, "name" | "description">) {
   return IMAGE_LIBRARY.geral;
 }
 
-/** Normaliza JSON do banco para até 5 entradas `{ url, colors }`. */
+const MAX_IMAGES_PER_COLOR_ENTRY = 3;
+
+/** URLs da entrada (principal + extras), no máximo 3. */
+export function entryImageUrls(e: ColorLinkedImageEntry): string[] {
+  const main = e.url?.trim();
+  const extras = (e.extra_urls ?? [])
+    .map((u) => String(u).trim())
+    .filter(Boolean);
+  const merged = [main, ...extras].filter(Boolean) as string[];
+  return merged.slice(0, MAX_IMAGES_PER_COLOR_ENTRY);
+}
+
+/** Normaliza JSON do banco para até 5 entradas `{ url, extra_urls?, colors, sizes? }`. */
 export function normalizeColorLinkedImages(raw: unknown): ColorLinkedImageEntry[] {
   let data: unknown = raw;
   if (typeof raw === "string") {
@@ -114,13 +126,43 @@ export function normalizeColorLinkedImages(raw: unknown): ColorLinkedImageEntry[
   const out: ColorLinkedImageEntry[] = [];
   for (const item of data) {
     if (!item || typeof item !== "object") continue;
-    const url = String((item as { url?: unknown }).url ?? "").trim();
-    if (!url) continue;
-    const c = (item as { colors?: unknown }).colors;
+    const o = item as {
+      urls?: unknown;
+      url?: unknown;
+      extra_urls?: unknown;
+      colors?: unknown;
+      sizes?: unknown;
+    };
+    let imageUrls: string[] = [];
+    if (Array.isArray(o.urls)) {
+      imageUrls = o.urls
+        .map((x) => String(x).trim())
+        .filter(Boolean)
+        .slice(0, MAX_IMAGES_PER_COLOR_ENTRY);
+    } else {
+      const main = String(o.url ?? "").trim();
+      const extra = Array.isArray(o.extra_urls)
+        ? o.extra_urls.map((x) => String(x).trim()).filter(Boolean)
+        : [];
+      imageUrls = [main, ...extra].filter(Boolean).slice(0, MAX_IMAGES_PER_COLOR_ENTRY);
+    }
+    if (imageUrls.length === 0) continue;
+    const c = o.colors;
     const colors = Array.isArray(c)
       ? [...new Set(c.map((x) => String(x).trim()).filter(Boolean))]
       : [];
-    out.push({ url, colors });
+    let sizes: number[] | undefined;
+    if (Array.isArray(o.sizes)) {
+      const nums = o.sizes
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n) && n > 0) as number[];
+      sizes = [...new Set(nums)].sort((a, b) => a - b);
+      if (sizes.length === 0) sizes = undefined;
+    }
+    const entry: ColorLinkedImageEntry = { url: imageUrls[0], colors };
+    if (imageUrls.length > 1) entry.extra_urls = imageUrls.slice(1);
+    if (sizes?.length) entry.sizes = sizes;
+    out.push(entry);
     if (out.length >= 5) break;
   }
   return out;
@@ -167,18 +209,24 @@ export function galleryUrlsForColor(
   const seen = new Set<string>();
   for (const e of entries) {
     const cols = e.colors.map((c) => c.trim().toLowerCase()).filter(Boolean);
-    const u = e.url.trim();
-    if (!u || seen.has(u)) continue;
+    const urls = entryImageUrls(e);
+    if (urls.length === 0) continue;
     if (sel === "") {
-      seen.add(u);
-      out.push(e.url);
+      for (const u of urls) {
+        if (!u || seen.has(u)) continue;
+        seen.add(u);
+        out.push(u);
+      }
       continue;
     }
     const forAllColors = cols.length === 0;
     const forThisColor = cols.includes(sel);
     if (!forAllColors && !forThisColor) continue;
-    seen.add(u);
-    out.push(e.url);
+    for (const u of urls) {
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
   }
   if (out.length > 0) {
     return out;
@@ -187,10 +235,11 @@ export function galleryUrlsForColor(
     const all: string[] = [];
     const seenAll = new Set<string>();
     for (const e of entries) {
-      const u = e.url.trim();
-      if (!u || seenAll.has(u)) continue;
-      seenAll.add(u);
-      all.push(e.url);
+      for (const u of entryImageUrls(e)) {
+        if (!u || seenAll.has(u)) continue;
+        seenAll.add(u);
+        all.push(u);
+      }
     }
     if (all.length > 0) return all;
   }

@@ -17,10 +17,14 @@ export type ProductCategory =
 
 export type ProfileRole = "customer" | "admin";
 
-/** Até 5 entradas: `url` + cores em que a foto aparece (`colors` vazio = todas). */
+/** Até 5 entradas: até 3 fotos (`url` + opcional `extra_urls`) + cores (`colors` vazio = todas). */
 export type ColorLinkedImageEntry = {
   url: string;
+  /** Até 2 URLs extra (total 3 fotos por entrada). */
+  extra_urls?: string[];
   colors: string[];
+  /** Numerações só para esta entrada; omitido = usar `available_sizes` do produto. */
+  sizes?: number[];
 };
 
 /** Preferências por usuário no painel (cada perfil salva o seu). */

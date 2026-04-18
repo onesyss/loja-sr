@@ -13,7 +13,7 @@ import { ProductImageLightbox } from "@/components/ProductImageLightbox";
 import {
   getProductColorGrid,
   getProductOptions,
-  getProductSizeGrid,
+  getProductSizesForColor,
 } from "@/lib/product-options";
 import type { ProductRow } from "@/types/database";
 
@@ -34,8 +34,10 @@ export default function ProdutoPage() {
 
       if (found) {
         const options = getProductOptions(found);
-        setSelectedSize(options.sizes[0] ?? null);
-        setSelectedColor(options.colors[0] ?? "");
+        const c0 = options.colors[0] ?? "";
+        setSelectedColor(c0);
+        const sizes = getProductSizesForColor(found, c0);
+        setSelectedSize(sizes[0] ?? null);
       }
     };
     void load();
@@ -43,6 +45,11 @@ export default function ProdutoPage() {
 
   const uploadedImageUrls = useMemo(
     () => (product ? galleryUrlsForColor(product, selectedColor) : []),
+    [product, selectedColor],
+  );
+
+  const sizesForColor = useMemo(
+    () => (product ? getProductSizesForColor(product, selectedColor) : []),
     [product, selectedColor],
   );
 
@@ -54,6 +61,12 @@ export default function ProdutoPage() {
     } else {
       setSelectedImage(getDisplayImage(product, 0, selectedColor || null));
     }
+  }, [product, selectedColor]);
+
+  useEffect(() => {
+    if (!product) return;
+    const sizes = getProductSizesForColor(product, selectedColor);
+    setSelectedSize((prev) => (prev && sizes.includes(prev) ? prev : sizes[0] ?? null));
   }, [product, selectedColor]);
 
   if (!product) {
@@ -73,7 +86,6 @@ export default function ProdutoPage() {
   }
 
   const options = getProductOptions(product);
-  const sizeGrid = getProductSizeGrid(product);
   const colorGrid = getProductColorGrid(product);
   const colorRequired = options.colors.length > 0;
   const discountPercent = product.discount_percent ?? 6;
@@ -82,10 +94,10 @@ export default function ProdutoPage() {
   const isUnavailable =
     product.stock < 1 ||
     !selectedSize ||
-    !options.sizes.includes(selectedSize) ||
+    !sizesForColor.includes(selectedSize) ||
     (colorRequired &&
       (!selectedColor || !options.colors.includes(selectedColor))) ||
-    options.sizes.length === 0;
+    sizesForColor.length === 0;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
@@ -182,29 +194,23 @@ export default function ProdutoPage() {
           <div className="mt-6">
             <p className="text-sm font-medium text-stone-700">Numeração disponível</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {sizeGrid.allSizes.length === 0 ? (
+              {sizesForColor.length === 0 ? (
                 <span className="text-sm text-stone-500">Sem numeração disponível</span>
               ) : (
-                sizeGrid.allSizes.map((size) => {
-                  const available = sizeGrid.availableSizes.includes(size);
-                  return (
+                sizesForColor.map((size) => (
                   <button
                     key={size}
                     type="button"
-                    disabled={!available}
                     onClick={() => setSelectedSize(size)}
                     className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                       selectedSize === size
                         ? "border-violet-600 bg-violet-600 text-white"
-                        : available
-                          ? "border-stone-300 bg-white text-stone-700 hover:border-violet-300"
-                          : "cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through"
+                        : "border-stone-300 bg-white text-stone-700 hover:border-violet-300"
                     }`}
                   >
                     {size}
                   </button>
-                  );
-                })
+                ))
               )}
             </div>
           </div>
