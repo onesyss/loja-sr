@@ -1,8 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { upsertLocalProduct } from "@/lib/local-products";
+import {
+  getProductUploadedImageUrls,
+  normalizeColorLinkedImages,
+} from "@/lib/product-images";
 import { slugify } from "@/lib/slug";
 import {
   PRODUCT_CATEGORY_LABELS,
@@ -15,7 +19,80 @@ import {
   PRODUCT_IMAGE_MAX_BYTES,
   PRODUCT_IMAGE_MAX_MB,
 } from "@/lib/product-image-upload";
-import type { ProductCategory, ProductRow } from "@/types/database";
+import type { ColorLinkedImageEntry, ProductCategory, ProductRow } from "@/types/database";
+
+const MAX_GALLERY = 5;
+const MAX_COLORS = 5;
+
+function newRowKey() {
+  return globalThis.crypto?.randomUUID?.() ?? `r-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function unionColorsFromLinked(p: ProductRow | null | undefined): string[] {
+  if (!p) return [];
+  const linked = normalizeColorLinkedImages(p.color_linked_images);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of linked) {
+    for (const c of e.colors) {
+      const t = c.trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+      if (out.length >= MAX_COLORS) return out;
+    }
+  }
+  return out;
+}
+
+type PaletteEntry = { id: string; name: string };
+
+function initialPaletteEntries(p: ProductRow | null | undefined): PaletteEntry[] {
+  if (!p) return [];
+  const db = (p.available_colors ?? []).map((c) => c.trim()).filter(Boolean);
+  const names =
+    db.length > 0 ? db.slice(0, MAX_COLORS) : unionColorsFromLinked(p);
+  return names.map((name) => ({ id: newRowKey(), name }));
+}
+
+function reorderList<T>(list: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+    return list;
+  }
+  const next = [...list];
+  const [removed] = next.splice(from, 1);
+  next.splice(to, 0, removed);
+  return next;
+}
+
+type GalleryRow = {
+  key: string;
+  url: string;
+  file: File | null;
+  colors: string[];
+};
+
+function rowsFromProduct(p: ProductRow | null | undefined): GalleryRow[] {
+  if (!p) return [];
+  const linked = normalizeColorLinkedImages(p.color_linked_images);
+  if (linked.length > 0) {
+    return linked.map((e, i) => ({
+      key: `k-${i}-${e.url.slice(-12)}`,
+      url: e.url,
+      file: null,
+      colors: [...e.colors],
+    }));
+  }
+  const legacy = getProductUploadedImageUrls(p);
+  return legacy.map((u, i) => ({
+    key: `leg-${i}-${u.slice(-8)}`,
+    url: u,
+    file: null,
+    colors: [] as string[],
+  }));
+}
 
 type Props = {
   initial?: ProductRow | null;
@@ -39,12 +116,10 @@ export function ProductForm({ initial }: Props) {
   const [availableSizes, setAvailableSizes] = useState(
     initial?.available_sizes?.join(", ") ?? "",
   );
-  const [availableColors, setAvailableColors] = useState(
-    initial?.available_colors?.join(", ") ?? "",
+  const [paletteEntries, setPaletteEntries] = useState<PaletteEntry[]>(() =>
+    initialPaletteEntries(initial),
   );
-  const [extraImageUrls, setExtraImageUrls] = useState(
-    initial?.extra_image_urls?.join(", ") ?? "",
-  );
+  const [galleryRows, setGalleryRows] = useState<GalleryRow[]>(() => rowsFromProduct(initial));
   const [discountPercent, setDiscountPercent] = useState(
     String(initial?.discount_percent ?? 6),
   );
@@ -56,20 +131,27 @@ export function ProductForm({ initial }: Props) {
   );
   const [stock, setStock] = useState(String(initial?.stock ?? 0));
   const [active, setActive] = useState(initial?.active ?? true);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      return;
+    setGalleryRows(rowsFromProduct(initial));
+    setPaletteEntries(initialPaletteEntries(initial));
+  }, [initial?.id]);
+
+  const colorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of paletteEntries) {
+      const t = e.name.trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
     }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return out;
+  }, [paletteEntries]);
 
   function onNameChange(v: string) {
     setName(v);
@@ -111,14 +193,20 @@ export function ProductForm({ initial }: Props) {
       .split(",")
       .map((value) => Number.parseInt(value.trim(), 10))
       .filter((value) => Number.isFinite(value) && value > 0);
-    const parsedColors = availableColors
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-    const parsedExtraImages = extraImageUrls
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
+    const parsedColors: string[] = [];
+    {
+      const seen = new Set<string>();
+      for (const e of paletteEntries) {
+        const t = e.name.trim();
+        if (!t) continue;
+        const k = t.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        parsedColors.push(t);
+        if (parsedColors.length >= MAX_COLORS) break;
+      }
+    }
+    const allowedColor = new Set(parsedColors.map((c) => c.toLowerCase()));
 
     if (availableSizes.trim() && parsedSizes.length === 0) {
       setError("Numerações inválidas. Use números separados por vírgula.");
@@ -126,9 +214,23 @@ export function ProductForm({ initial }: Props) {
       return;
     }
 
-    let image_url = initial?.image_url ?? null;
+    const usedRows = galleryRows.filter((r) => r.url.trim() || r.file);
+    if (usedRows.length > MAX_GALLERY) {
+      setError(`Máximo ${MAX_GALLERY} fotos.`);
+      setLoading(false);
+      return;
+    }
 
-    if (file) {
+    const hasTaggedRows = usedRows.some((r) => r.colors.length > 0);
+    if (hasTaggedRows && parsedColors.length === 0) {
+      setError(
+        `Adicione até ${MAX_COLORS} nomes de cor (secção abaixo) ou marque só «Todas as cores» em cada foto.`,
+      );
+      setLoading(false);
+      return;
+    }
+
+    async function uploadOne(file: File): Promise<string | null> {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload/product-image", {
@@ -138,19 +240,34 @@ export function ProductForm({ initial }: Props) {
       });
       const json: { url?: string; error?: string } = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(
-          typeof json.error === "string" ? json.error : "Falha ao enviar imagem.",
-        );
-        setLoading(false);
-        return;
+        setError(typeof json.error === "string" ? json.error : "Falha ao enviar imagem.");
+        return null;
       }
-      if (!json.url) {
-        setError("Resposta inválida do servidor.");
-        setLoading(false);
-        return;
-      }
-      image_url = json.url;
+      return json.url ?? null;
     }
+
+    const built: ColorLinkedImageEntry[] = [];
+    for (const row of usedRows.slice(0, MAX_GALLERY)) {
+      let url = row.url.trim();
+      if (row.file) {
+        const u = await uploadOne(row.file);
+        if (!u) {
+          setLoading(false);
+          return;
+        }
+        url = u;
+      }
+      if (!url) continue;
+      const rowColors =
+        row.colors.length === 0
+          ? []
+          : row.colors.filter((c) => allowedColor.has(c.trim().toLowerCase()));
+      built.push({ url, colors: rowColors });
+    }
+
+    const image_url = built[0]?.url ?? null;
+    const color_linked_images: ColorLinkedImageEntry[] = built;
+    const extra_image_urls = null;
 
     const cleanSlug = slug.trim() || slugify(name);
     const trimmedName = name.trim();
@@ -171,7 +288,8 @@ export function ProductForm({ initial }: Props) {
         stock: stockNum,
         available_sizes: parsedSizes.length > 0 ? parsedSizes : null,
         available_colors: parsedColors.length > 0 ? parsedColors : null,
-        extra_image_urls: parsedExtraImages.length > 0 ? parsedExtraImages : null,
+        extra_image_urls,
+        color_linked_images,
         active,
         image_url,
       },
@@ -188,6 +306,115 @@ export function ProductForm({ initial }: Props) {
     router.push("/admin/produtos");
     router.refresh();
   }
+
+  function addGalleryRow() {
+    if (galleryRows.length >= MAX_GALLERY) return;
+    setGalleryRows((rows) => [
+      ...rows,
+      { key: newRowKey(), url: "", file: null, colors: [] },
+    ]);
+  }
+
+  function removeGalleryRow(key: string) {
+    setGalleryRows((rows) => rows.filter((r) => r.key !== key));
+  }
+
+  function updateRow(key: string, patch: Partial<GalleryRow>) {
+    setGalleryRows((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+
+  function toggleRowColor(rowKey: string, color: string) {
+    setGalleryRows((rows) =>
+      rows.map((r) => {
+        if (r.key !== rowKey) return r;
+        if (r.colors.length === 0) return { ...r, colors: [color] };
+        const has = r.colors.some((c) => c.trim().toLowerCase() === color.trim().toLowerCase());
+        const next = has
+          ? r.colors.filter((c) => c.trim().toLowerCase() !== color.trim().toLowerCase())
+          : [...r.colors, color];
+        return { ...r, colors: next };
+      }),
+    );
+  }
+
+  function addPaletteColor() {
+    if (paletteEntries.length >= MAX_COLORS) return;
+    setPaletteEntries((p) => [...p, { id: newRowKey(), name: "" }]);
+  }
+
+  function removePaletteColor(id: string) {
+    const entry = paletteEntries.find((e) => e.id === id);
+    const removed = entry?.name.trim();
+    setPaletteEntries((list) => list.filter((e) => e.id !== id));
+    if (removed) {
+      setGalleryRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          colors: r.colors.filter((c) => c.trim().toLowerCase() !== removed.toLowerCase()),
+        })),
+      );
+    }
+  }
+
+  function updatePaletteColor(id: string, value: string) {
+    const entry = paletteEntries.find((e) => e.id === id);
+    const oldTrim = entry?.name.trim() ?? "";
+    const trimmed = value.trim();
+    setPaletteEntries((list) =>
+      list.map((e) => (e.id === id ? { ...e, name: value } : e)),
+    );
+    if (oldTrim && oldTrim.toLowerCase() !== trimmed.toLowerCase()) {
+      const oldKey = oldTrim.toLowerCase();
+      setGalleryRows((rows) =>
+        rows.map((r) => ({
+          ...r,
+          colors: r.colors.map((c) =>
+            c.trim().toLowerCase() === oldKey ? (trimmed || c) : c,
+          ),
+        })),
+      );
+    }
+  }
+
+  function onPaletteDragStart(e: React.DragEvent, index: number) {
+    e.dataTransfer.setData("text/plain", `sr-palette:${index}`);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function onPaletteDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+
+  function onPaletteDrop(e: React.DragEvent, toIndex: number) {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData("text/plain");
+    const m = /^sr-palette:(\d+)$/.exec(raw);
+    const from = m ? Number.parseInt(m[1], 10) : NaN;
+    if (Number.isNaN(from)) return;
+    setPaletteEntries((list) => reorderList(list, from, toIndex));
+  }
+
+  function onGalleryDragStart(e: React.DragEvent, index: number) {
+    e.dataTransfer.setData("text/plain", `sr-gallery:${index}`);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function onGalleryDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+
+  function onGalleryDrop(e: React.DragEvent, toIndex: number) {
+    e.preventDefault();
+    const raw = e.dataTransfer.getData("text/plain");
+    const m = /^sr-gallery:(\d+)$/.exec(raw);
+    const from = m ? Number.parseInt(m[1], 10) : NaN;
+    if (Number.isNaN(from)) return;
+    setGalleryRows((list) => reorderList(list, from, toIndex));
+  }
+
+  const filledCount = galleryRows.filter((r) => r.url.trim() || r.file).length;
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-6">
@@ -259,113 +486,210 @@ export function ProductForm({ initial }: Props) {
           ))}
         </select>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label
-            className="block text-sm font-medium text-stone-700"
-            htmlFor="available_sizes"
-          >
-            Numerações disponíveis
-          </label>
-          <input
-            id="available_sizes"
-            placeholder="34, 35, 36, 37"
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={availableSizes}
-            onChange={(e) => setAvailableSizes(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-stone-500">
-            Separe por vírgula. Ex.: 37, 38, 39
-          </p>
-        </div>
-        <div>
-          <label
-            className="block text-sm font-medium text-stone-700"
-            htmlFor="available_colors"
-          >
-            Cores disponíveis
-          </label>
-          <input
-            id="available_colors"
-            placeholder="Preto, Branco, Azul"
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={availableColors}
-            onChange={(e) => setAvailableColors(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-stone-500">
-            Separe por vírgula. Ex.: Preto, Bege
-          </p>
-        </div>
+      <div>
+        <label
+          className="block text-sm font-medium text-stone-700"
+          htmlFor="available_sizes"
+        >
+          Numerações disponíveis
+        </label>
+        <input
+          id="available_sizes"
+          placeholder="34, 35, 36, 37"
+          className="mt-1 w-full max-w-xl rounded-lg border border-stone-300 px-3 py-2"
+          value={availableSizes}
+          onChange={(e) => setAvailableSizes(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-stone-500">Separe por vírgula. Ex.: 37, 38, 39</p>
       </div>
       <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
-        <p className="text-sm font-semibold text-stone-900">Imagens do produto</p>
-
-        <div className="mt-4">
-          <span className="block text-sm font-medium text-stone-700">Foto principal</span>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-violet-700">
-              Escolher imagem
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="sr-only"
-                onChange={(e) => {
-                  const selected = e.target.files?.[0] ?? null;
-                  if (selected && selected.size > PRODUCT_IMAGE_MAX_BYTES) {
-                    setError(
-                      `Arquivo acima de ${PRODUCT_IMAGE_MAX_MB} MB. Escolha uma imagem menor.`,
-                    );
-                    setFile(null);
-                    e.target.value = "";
-                    return;
-                  }
-                  setError(null);
-                  setFile(selected);
-                }}
-              />
-            </label>
-            <span className="text-sm text-stone-600">
-              {file
-                ? file.name
-                : editing && initial?.image_url
-                  ? "Imagem atual será mantida (ou escolha outra)"
-                  : "Opcional no cadastro"}
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-stone-500">
-            Até {PRODUCT_IMAGE_MAX_MB} MB · JPEG, PNG ou WebP
-          </p>
-          {(previewUrl || (editing && initial?.image_url && !file)) ? (
-            <div className="mt-3 flex">
-              <div className="relative h-28 w-36 overflow-hidden rounded-lg border border-stone-200 bg-white">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl ?? initial?.image_url ?? ""}
-                  alt=""
-                  className="h-full w-full object-contain p-1"
-                />
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-6 border-t border-stone-200 pt-4">
-          <label
-            className="block text-sm font-medium text-stone-700"
-            htmlFor="extra_image_urls"
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-stone-900">Cores do produto (até {MAX_COLORS})</p>
+          <button
+            type="button"
+            onClick={addPaletteColor}
+            disabled={paletteEntries.length >= MAX_COLORS}
+            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Outras fotos (links)
-          </label>
-          <input
-            id="extra_image_urls"
-            placeholder="https://..., https://..."
-            className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2"
-            value={extraImageUrls}
-            onChange={(e) => setExtraImageUrls(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-stone-500">
-            Até 2 URLs separadas por vírgula — galeria na página do produto.
-          </p>
+            Adicionar cor ({paletteEntries.length}/{MAX_COLORS})
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-stone-500">
+          Escolha os nomes que quiser (ex.: Vinho, Nude). Arraste pelo ícone à esquerda para mudar a
+          ordem na loja. Depois associe cada foto às cores; no máximo {MAX_COLORS} cores.
+        </p>
+        {paletteEntries.length === 0 ? (
+          <p className="mt-3 text-sm text-stone-500">Nenhuma cor — use só «Todas as cores» nas fotos.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {paletteEntries.map((entry, index) => (
+              <li
+                key={entry.id}
+                onDragOver={onPaletteDragOver}
+                onDrop={(e) => onPaletteDrop(e, index)}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-100 bg-white/80 px-1 py-1"
+              >
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={(e) => onPaletteDragStart(e, index)}
+                  className="cursor-grab touch-none rounded px-1.5 py-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 active:cursor-grabbing"
+                  aria-label="Arrastar para reordenar cor"
+                  title="Arrastar para reordenar"
+                >
+                  <span className="block select-none text-xs leading-none" aria-hidden>
+                    ⋮⋮
+                  </span>
+                </button>
+                <input
+                  type="text"
+                  placeholder="Nome da cor"
+                  className="min-w-[10rem] flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm"
+                  value={entry.name}
+                  onChange={(e) => updatePaletteColor(entry.id, e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => removePaletteColor(entry.id)}
+                  className="text-xs font-medium text-red-600 hover:underline"
+                >
+                  Remover
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-stone-900">Fotos do produto (até {MAX_GALLERY})</p>
+          <button
+            type="button"
+            onClick={addGalleryRow}
+            disabled={galleryRows.length >= MAX_GALLERY}
+            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Adicionar foto ({filledCount}/{MAX_GALLERY})
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-stone-500">
+          Envio por ficheiro apenas (JPEG/PNG/WebP, até {PRODUCT_IMAGE_MAX_MB} MB). Arraste pelo ícone
+          ⋮⋮ para mudar a ordem das fotos na galeria. A 1.ª foto é a principal. Marque em que cores cada
+          imagem aparece; sem marcação = todas as cores.
+        </p>
+
+        <div className="mt-4 space-y-4">
+          {galleryRows.length === 0 ? (
+            <p className="text-sm text-stone-500">Ainda sem fotos. Use &quot;Adicionar foto&quot;.</p>
+          ) : null}
+          {galleryRows.map((row, index) => (
+            <div
+              key={row.key}
+              onDragOver={onGalleryDragOver}
+              onDrop={(e) => onGalleryDrop(e, index)}
+              className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => onGalleryDragStart(e, index)}
+                    className="cursor-grab touch-none rounded px-1.5 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700 active:cursor-grabbing"
+                    aria-label="Arrastar para reordenar foto"
+                    title="Arrastar para reordenar"
+                  >
+                    <span className="block select-none text-xs leading-none" aria-hidden>
+                      ⋮⋮
+                    </span>
+                  </button>
+                  <span className="text-xs font-medium text-stone-500">Foto {index + 1}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeGalleryRow(row.key)}
+                  className="text-xs font-medium text-red-600 hover:underline"
+                >
+                  Remover
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100">
+                  {row.url.trim() && !row.file ? "Substituir imagem" : "Escolher imagem"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      if (f && f.size > PRODUCT_IMAGE_MAX_BYTES) {
+                        setError(
+                          `Arquivo acima de ${PRODUCT_IMAGE_MAX_MB} MB. Escolha uma imagem menor.`,
+                        );
+                        e.target.value = "";
+                        return;
+                      }
+                      setError(null);
+                      updateRow(row.key, { file: f, url: f ? "" : row.url });
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {row.url.trim() && !row.file ? (
+                  <span className="text-xs text-stone-500">Imagem atual no servidor.</span>
+                ) : null}
+              </div>
+              {row.file ? (
+                <p className="mt-1 text-xs text-stone-600">Ficheiro: {row.file.name}</p>
+              ) : null}
+              <div className="mt-3 border-t border-stone-100 pt-2">
+                <p className="text-xs font-medium text-stone-600">Mostrar quando a cor for:</p>
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={row.colors.length === 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        updateRow(row.key, { colors: [] });
+                      } else {
+                        const first = colorOptions[0];
+                        updateRow(row.key, { colors: first ? [first] : [] });
+                      }
+                    }}
+                  />
+                  Todas as cores
+                </label>
+                {colorOptions.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {colorOptions.map((c) => (
+                      <label key={c} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                    checked={row.colors.some(
+                      (rc) => rc.trim().toLowerCase() === c.trim().toLowerCase(),
+                    )}
+                    onChange={() => toggleRowColor(row.key, c)}
+                        />
+                        {c}
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-stone-400">
+                    Adicione nomes de cor na secção &quot;Cores do produto&quot; para filtrar por cor.
+                  </p>
+                )}
+              </div>
+              {row.url.trim() && !row.file ? (
+                <div className="mt-2 h-20 w-24 overflow-hidden rounded border border-stone-100 bg-stone-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={row.url} alt="" className="h-full w-full object-contain p-0.5" />
+                </div>
+              ) : row.file ? (
+                <p className="mt-2 text-xs text-stone-500">Pré-visualização após gravar.</p>
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

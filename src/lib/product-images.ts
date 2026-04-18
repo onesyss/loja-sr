@@ -1,4 +1,4 @@
-import type { ProductRow } from "@/types/database";
+import type { ColorLinkedImageEntry, ProductRow } from "@/types/database";
 import { resolveProductCategory } from "@/lib/product-category";
 
 const IMAGE_LIBRARY = {
@@ -98,6 +98,121 @@ function getImageGroup(product: Pick<ProductRow, "name" | "description">) {
   return IMAGE_LIBRARY.geral;
 }
 
+/** Normaliza JSON do banco para até 5 entradas `{ url, colors }`. */
+export function normalizeColorLinkedImages(
+  raw: ProductRow["color_linked_images"],
+): ColorLinkedImageEntry[] {
+  let data: unknown = raw;
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return [];
+    try {
+      data = JSON.parse(s) as unknown;
+    } catch {
+      return [];
+    }
+  }
+  if (!data || !Array.isArray(data)) return [];
+  const out: ColorLinkedImageEntry[] = [];
+  for (const item of data) {
+    if (!item || typeof item !== "object") continue;
+    const url = String((item as { url?: unknown }).url ?? "").trim();
+    if (!url) continue;
+    const c = (item as { colors?: unknown }).colors;
+    const colors = Array.isArray(c)
+      ? [...new Set(c.map((x) => String(x).trim()).filter(Boolean))]
+      : [];
+    out.push({ url, colors });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+/** Nomes de cor únicos usados em `color_linked_images` (máx. 5), para vitrine/PDP. */
+export function uniqueLinkedColorNames(product: ProductRow): string[] {
+  const entries = normalizeColorLinkedImages(product.color_linked_images);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of entries) {
+    for (const c of e.colors) {
+      const t = c.trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+      if (out.length >= 5) break;
+    }
+  }
+  return out;
+}
+
+/**
+ * URLs da galeria para a cor escolhida (PDP/carrinho).
+ * Inclui, em ordem do JSON: (1) fotos com `colors` vazio (= todas as cores) e (2) fotos cuja lista
+ * inclui a cor escolhida. Antes usávamos só um grupo quando havia fotos específicas — escondia as
+ * marcadas «todas» junto com as da cor.
+ * Sem `color_linked_images`: usa `image_url` + `extra_image_urls` (legado).
+ */
+export function galleryUrlsForColor(
+  product: ProductRow,
+  selectedColor: string | null | undefined,
+): string[] {
+  const entries = normalizeColorLinkedImages(product.color_linked_images);
+  const sel = (selectedColor ?? "").trim().toLowerCase();
+
+  if (entries.length === 0) {
+    return getProductUploadedImageUrls(product);
+  }
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const e of entries) {
+    const cols = e.colors.map((c) => c.trim().toLowerCase()).filter(Boolean);
+    const u = e.url.trim();
+    if (!u || seen.has(u)) continue;
+    if (sel === "") {
+      seen.add(u);
+      out.push(e.url);
+      continue;
+    }
+    const forAllColors = cols.length === 0;
+    const forThisColor = cols.includes(sel);
+    if (!forAllColors && !forThisColor) continue;
+    seen.add(u);
+    out.push(e.url);
+  }
+  if (out.length > 0) {
+    return out;
+  }
+  if (entries.length > 0) {
+    const all: string[] = [];
+    const seenAll = new Set<string>();
+    for (const e of entries) {
+      const u = e.url.trim();
+      if (!u || seenAll.has(u)) continue;
+      seenAll.add(u);
+      all.push(e.url);
+    }
+    if (all.length > 0) return all;
+  }
+  return getProductUploadedImageUrls(product);
+}
+
+/** Fotos guardadas no produto (principal + extras), sem placeholders da vitrine. */
+export function getProductUploadedImageUrls(product: ProductRow): string[] {
+  const main = product.image_url?.trim();
+  const extras = (product.extra_image_urls ?? [])
+    .map((u) => String(u).trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  if (main) out.push(main);
+  for (const u of extras) {
+    if (!out.includes(u)) out.push(u);
+  }
+  return out;
+}
+
 export function getPlaceholderImage(product: Pick<ProductRow, "slug" | "id">, variant = 0) {
   const base = hashString(`${product.slug}-${product.id}`);
   const pool = IMAGE_LIBRARY.geral;
@@ -114,7 +229,11 @@ export function getDisplayImage(
   variant = 0,
   colorHint?: string | null,
 ) {
-  if (product.image_url) return product.image_url;
+  const linkedUrls = galleryUrlsForColor(product, colorHint);
+  if (linkedUrls.length > 0) {
+    const idx = Math.min(Math.max(0, variant), linkedUrls.length - 1);
+    return linkedUrls[idx] ?? linkedUrls[0];
+  }
 
   if (resolveProductCategory(product) === "tenis") {
     const raw = inferColorHintForTenis(product, colorHint);

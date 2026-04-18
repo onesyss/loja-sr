@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { normalizeColorLinkedImages } from "@/lib/product-images";
+import { messageFromProductsPostgrestError } from "@/lib/products-db-error";
+import { createServiceClientOrNull } from "@/lib/supabase/server";
 import type { ProductRow } from "@/types/database";
 
 type ProductWritePayload = Omit<ProductRow, "id" | "created_at" | "updated_at">;
@@ -23,17 +25,28 @@ function normalizePayload(payload: ProductWritePayload) {
     available_sizes: payload.available_sizes ?? null,
     available_colors: payload.available_colors ?? null,
     extra_image_urls: payload.extra_image_urls ?? null,
+    color_linked_images: normalizeColorLinkedImages(payload.color_linked_images),
     active: payload.active,
   };
 }
 
 export async function GET(request: Request) {
-  const supabase = createServiceClient();
+  const supabase = createServiceClientOrNull();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        error:
+          "Servidor sem credenciais Supabase. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.local.",
+      },
+      { status: 503 },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 
   const baseSelect =
-    "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, active, created_at, updated_at";
+    "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at";
 
   if (slug) {
     const { data, error } = await supabase
@@ -43,7 +56,10 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: "Falha ao buscar produto." }, { status: 500 });
+      return NextResponse.json(
+        { error: messageFromProductsPostgrestError(error, "buscar") },
+        { status: 500 },
+      );
     }
     if (!data) {
       return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
@@ -57,7 +73,10 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: "Falha ao buscar produtos." }, { status: 500 });
+    return NextResponse.json(
+      { error: messageFromProductsPostgrestError(error, "listar") },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json(data ?? []);
@@ -75,34 +94,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nome e slug são obrigatórios." }, { status: 400 });
   }
 
-  const supabase = createServiceClient();
+  const supabase = createServiceClientOrNull();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        error:
+          "Servidor sem credenciais Supabase. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.local.",
+      },
+      { status: 503 },
+    );
+  }
+
   const payload = normalizePayload(body);
 
   const { data, error } = await supabase
     .from("products")
     .insert(payload)
     .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, active, created_at, updated_at",
+      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
     )
     .single();
 
   if (error) {
     const raw = (error.message || "").toLowerCase();
-    const code = (error as { code?: string }).code;
+    const code = String((error as { code?: string }).code ?? "");
     const isDuplicate =
       code === "23505" ||
       raw.includes("duplicate") ||
       raw.includes("unique") ||
       raw.includes("products_slug_key");
-    const isCheck =
-      code === "23514" || raw.includes("check constraint") || raw.includes("violates check");
-    const message = isDuplicate
-      ? "Já existe um produto com este slug. Altere o slug ou edite o produto existente."
-      : isCheck
-        ? "Algum valor não é aceito pelo banco (ex.: categoria ou campos obrigatórios). Confira os dados."
-        : "Falha ao criar produto.";
     return NextResponse.json(
-      { error: message },
+      { error: messageFromProductsPostgrestError(error, "criar") },
       { status: isDuplicate ? 409 : 500 },
     );
   }

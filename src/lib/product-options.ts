@@ -1,5 +1,9 @@
 import type { ProductRow } from "@/types/database";
 import { resolveProductCategory, styleFromCategory } from "@/lib/product-category";
+import {
+  normalizeColorLinkedImages,
+  uniqueLinkedColorNames,
+} from "@/lib/product-images";
 
 type ProductOptions = {
   sizes: number[];
@@ -36,14 +40,22 @@ export function getProductOptions(product: ProductRow): ProductOptions {
   const manualColors = (product.available_colors ?? [])
     .map((color) => color.trim())
     .filter(Boolean);
+  const linkedColors = uniqueLinkedColorNames(product);
+  const hasGallery = normalizeColorLinkedImages(product.color_linked_images).length > 0;
 
-  if (manualSizes.length > 0 || manualColors.length > 0) {
+  if (manualSizes.length > 0 || manualColors.length > 0 || linkedColors.length > 0 || hasGallery) {
+    const colors =
+      manualColors.length > 0
+        ? manualColors
+        : linkedColors.length > 0
+          ? linkedColors
+          : [];
     return {
       sizes:
         manualSizes.length > 0
           ? manualSizes.slice(0, Math.max(0, product.stock))
           : [],
-      colors: manualColors.length > 0 ? manualColors : ["Preto"],
+      colors,
     };
   }
 
@@ -76,13 +88,6 @@ export function getProductSizeGrid(product: ProductRow) {
 }
 
 export function getProductColorGrid(product: ProductRow) {
-  const text = `${product.name} ${product.description ?? ""}`.toLowerCase();
-  const style =
-    product.style ??
-    (product.category
-      ? styleFromCategory(resolveProductCategory(product))
-      : inferStyle(text));
-  const allColors = getBaseColorsForStyle(style);
   const availableColors = getProductOptions(product).colors;
-  return { allColors, availableColors };
+  return { allColors: availableColors, availableColors };
 }

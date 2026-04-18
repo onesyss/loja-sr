@@ -28,13 +28,28 @@ export async function createClient() {
   );
 }
 
-export function createServiceClient() {
+function getServiceRoleConfig(): { url: string; key: string } | null {
   const url = getSupabaseUrl();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !key) {
+  if (!url || !key) return null;
+  return { url, key };
+}
+
+/** Cliente com service role, ou `null` se URL/chave não estiverem definidos (evita 500 opaco nas rotas). */
+export function createServiceClientOrNull() {
+  const cfg = getServiceRoleConfig();
+  if (!cfg) return null;
+  return createSupabaseService(cfg.url, cfg.key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export function createServiceClient() {
+  const cfg = getServiceRoleConfig();
+  if (!cfg) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ou URL ausente");
   }
-  return createSupabaseService(url, key, {
+  return createSupabaseService(cfg.url, cfg.key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

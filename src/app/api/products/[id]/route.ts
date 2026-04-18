@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server";
+import { normalizeColorLinkedImages } from "@/lib/product-images";
+import { messageFromProductsPostgrestError } from "@/lib/products-db-error";
+import { createServiceClientOrNull } from "@/lib/supabase/server";
 import type { ProductRow } from "@/types/database";
 
 type ProductWritePayload = Omit<ProductRow, "id" | "created_at" | "updated_at">;
@@ -23,6 +25,7 @@ function normalizePayload(payload: ProductWritePayload) {
     available_sizes: payload.available_sizes ?? null,
     available_colors: payload.available_colors ?? null,
     extra_image_urls: payload.extra_image_urls ?? null,
+    color_linked_images: normalizeColorLinkedImages(payload.color_linked_images),
     active: payload.active,
   };
 }
@@ -32,18 +35,30 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = createServiceClient();
+  const supabase = createServiceClientOrNull();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        error:
+          "Servidor sem credenciais Supabase. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.local.",
+      },
+      { status: 503 },
+    );
+  }
 
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, active, created_at, updated_at",
+      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
     )
     .eq("id", id)
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: "Falha ao buscar produto." }, { status: 500 });
+    return NextResponse.json(
+      { error: messageFromProductsPostgrestError(error, "buscar") },
+      { status: 500 },
+    );
   }
   if (!data) {
     return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
@@ -66,7 +81,17 @@ export async function PUT(
     return NextResponse.json({ error: "Nome e slug são obrigatórios." }, { status: 400 });
   }
 
-  const supabase = createServiceClient();
+  const supabase = createServiceClientOrNull();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        error:
+          "Servidor sem credenciais Supabase. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.local.",
+      },
+      { status: 503 },
+    );
+  }
+
   const payload = normalizePayload(body);
 
   const { data, error } = await supabase
@@ -74,27 +99,20 @@ export async function PUT(
     .update(payload)
     .eq("id", id)
     .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, active, created_at, updated_at",
+      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
     )
     .maybeSingle();
 
   if (error) {
     const raw = (error.message || "").toLowerCase();
-    const code = (error as { code?: string }).code;
+    const code = String((error as { code?: string }).code ?? "");
     const isDuplicate =
       code === "23505" ||
       raw.includes("duplicate") ||
       raw.includes("unique") ||
       raw.includes("products_slug_key");
-    const isCheck =
-      code === "23514" || raw.includes("check constraint") || raw.includes("violates check");
-    const message = isDuplicate
-      ? "Já existe outro produto com este slug. Escolha outro slug."
-      : isCheck
-        ? "Algum valor não é aceito pelo banco (ex.: categoria ou campos obrigatórios). Confira os dados."
-        : "Falha ao atualizar produto.";
     return NextResponse.json(
-      { error: message },
+      { error: messageFromProductsPostgrestError(error, "atualizar") },
       { status: isDuplicate ? 409 : 500 },
     );
   }
@@ -102,4 +120,48 @@ export async function PUT(
     return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
   }
   return NextResponse.json(data);
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = createServiceClientOrNull();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        error:
+          "Servidor sem credenciais Supabase. Defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em .env.local.",
+      },
+      { status: 503 },
+    );
+  }
+
+  const { error } = await supabase.from("products").delete().eq("id", id);
+
+  if (error) {
+    const raw = (error.message || "").toLowerCase();
+    const code = String((error as { code?: string }).code ?? "");
+    if (
+      code === "23503" ||
+      raw.includes("foreign key") ||
+      raw.includes("violates foreign key") ||
+      raw.includes("is still referenced")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Não é possível excluir: este produto está ligado a pedidos. Desative-o na loja (desmarcar «Ativo») em vez de apagar, ou remova primeiro os itens do pedido no Supabase.",
+        },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json(
+      { error: messageFromProductsPostgrestError(error, "excluir") },
+      { status: 500 },
+    );
+  }
+
+  return new NextResponse(null, { status: 204 });
 }

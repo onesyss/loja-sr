@@ -8,7 +8,7 @@ import { useCart } from "@/context/cart-context";
 import { getLocalProductBySlug } from "@/lib/local-products";
 import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
 import { formatBRL } from "@/lib/money";
-import { getDisplayImage, getPlaceholderImage } from "@/lib/product-images";
+import { getDisplayImage, galleryUrlsForColor } from "@/lib/product-images";
 import { ProductImageLightbox } from "@/components/ProductImageLightbox";
 import {
   getProductColorGrid,
@@ -41,19 +41,19 @@ export default function ProdutoPage() {
     void load();
   }, [params.slug]);
 
+  const uploadedImageUrls = useMemo(
+    () => (product ? galleryUrlsForColor(product, selectedColor) : []),
+    [product, selectedColor],
+  );
+
   useEffect(() => {
     if (!product) return;
-    setSelectedImage(getDisplayImage(product, 0, selectedColor || null));
-  }, [product, selectedColor]);
-
-  const galleryImages = useMemo(() => {
-    if (!product) return [] as string[];
-    return [
-      getDisplayImage(product, 0, selectedColor || null),
-      ...(product.extra_image_urls ?? []),
-      getPlaceholderImage(product, 1),
-      getPlaceholderImage(product, 2),
-    ].filter(Boolean) as string[];
+    const urls = galleryUrlsForColor(product, selectedColor);
+    if (urls.length > 0) {
+      setSelectedImage((prev) => (prev && urls.includes(prev) ? prev : urls[0]));
+    } else {
+      setSelectedImage(getDisplayImage(product, 0, selectedColor || null));
+    }
   }, [product, selectedColor]);
 
   if (!product) {
@@ -75,6 +75,7 @@ export default function ProdutoPage() {
   const options = getProductOptions(product);
   const sizeGrid = getProductSizeGrid(product);
   const colorGrid = getProductColorGrid(product);
+  const colorRequired = options.colors.length > 0;
   const discountPercent = product.discount_percent ?? 6;
   const maxInstallments = Math.min(Math.max(product.max_installments ?? 5, 1), 5);
   const pixCents = Math.round(product.price_cents * (1 - discountPercent / 100));
@@ -82,8 +83,8 @@ export default function ProdutoPage() {
     product.stock < 1 ||
     !selectedSize ||
     !options.sizes.includes(selectedSize) ||
-    !selectedColor ||
-    !options.colors.includes(selectedColor) ||
+    (colorRequired &&
+      (!selectedColor || !options.colors.includes(selectedColor))) ||
     options.sizes.length === 0;
 
   return (
@@ -119,9 +120,14 @@ export default function ProdutoPage() {
               Clique para ampliar
             </span>
           </button>
-          {galleryImages.length > 1 ? (
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              {galleryImages.slice(0, 3).map((image, index) => (
+          {uploadedImageUrls.length > 1 ? (
+            <div
+              className="mt-3 grid gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(uploadedImageUrls.length, 4)}, minmax(0, 1fr))`,
+              }}
+            >
+              {uploadedImageUrls.map((image, index) => (
                 <button
                   key={`${image}-${index}`}
                   type="button"
@@ -134,7 +140,7 @@ export default function ProdutoPage() {
                 >
                   <Image
                     src={image}
-                    alt={`${product.name} - imagem ${index + 1}`}
+                    alt={`${product.name} - foto ${index + 1}`}
                     fill
                     className="object-contain"
                     sizes="120px"
@@ -202,38 +208,35 @@ export default function ProdutoPage() {
               )}
             </div>
           </div>
-          <div className="mt-4">
-            <p className="text-sm font-medium text-stone-700">Cor</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {colorGrid.allColors.map((color) => {
-                const available = colorGrid.availableColors.includes(color);
-                return (
-                <button
-                  key={color}
-                  type="button"
-                  disabled={!available}
-                  onClick={() => setSelectedColor(color)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                    selectedColor === color
-                      ? "border-violet-600 bg-violet-600 text-white"
-                      : available
-                        ? "border-stone-300 bg-white text-stone-700 hover:border-violet-300"
-                        : "cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through"
-                  }`}
-                >
-                  {color}
-                </button>
-                );
-              })}
+          {colorGrid.allColors.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-stone-700">Cor</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {colorGrid.allColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setSelectedColor(color)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                      selectedColor === color
+                        ? "border-violet-600 bg-violet-600 text-white"
+                        : "border-stone-300 bg-white text-stone-700 hover:border-violet-300"
+                    }`}
+                  >
+                    {color}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
           <div className="mt-8 max-w-xs">
             <button
               type="button"
               onClick={() =>
                 add(product, 1, {
                   size: selectedSize ?? undefined,
-                  color: selectedColor || undefined,
+                  color:
+                    options.colors.length > 0 ? selectedColor || undefined : undefined,
                 })
               }
               disabled={isUnavailable}

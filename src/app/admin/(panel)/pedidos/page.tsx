@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { formatBRL } from "@/lib/money";
 import {
   deleteWhatsappOrder,
@@ -11,6 +12,8 @@ import type { WhatsAppOrderRecord } from "@/types/database";
 
 export default function AdminPedidosPage() {
   const [orders, setOrders] = useState<WhatsAppOrderRecord[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const refresh = useCallback(() => {
     void getWhatsappOrders().then(setOrders);
@@ -26,14 +29,12 @@ export default function AdminPedidosPage() {
     };
   }, [refresh]);
 
-  async function handleDelete(id: string) {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm("Remover este pedido do registro? Esta ação não pode ser desfeita.")
-    ) {
-      return;
-    }
-    await deleteWhatsappOrder(id);
+  async function confirmRemoveOrder() {
+    if (!pendingDeleteId) return;
+    setDeleteBusy(true);
+    await deleteWhatsappOrder(pendingDeleteId);
+    setDeleteBusy(false);
+    setPendingDeleteId(null);
     refresh();
   }
 
@@ -71,7 +72,7 @@ export default function AdminPedidosPage() {
                   <p className="text-lg font-bold text-violet-700">{formatBRL(o.total_cents)}</p>
                   <button
                     type="button"
-                    onClick={() => handleDelete(o.id)}
+                    onClick={() => setPendingDeleteId(o.id)}
                     className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50"
                   >
                     Apagar pedido
@@ -92,6 +93,20 @@ export default function AdminPedidosPage() {
           ))}
         </ul>
       )}
+
+      <ConfirmModal
+        open={pendingDeleteId !== null}
+        title="Remover pedido?"
+        description="Este registo deixará de aparecer na lista. Não é possível recuperar depois."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        confirmVariant="danger"
+        busy={deleteBusy}
+        onCancel={() => {
+          if (!deleteBusy) setPendingDeleteId(null);
+        }}
+        onConfirm={() => void confirmRemoveOrder()}
+      />
     </div>
   );
 }

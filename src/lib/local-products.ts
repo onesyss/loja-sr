@@ -39,12 +39,15 @@ function ensureProductCodes(products: ProductRow[]) {
   });
 }
 
-/** Mocks só em desenvolvimento quando a API falha. Em produção (ex.: Vercel sem env) retorna vazio — evita mostrar dados demo no lugar do banco. */
+/**
+ * Mocks desativados por defeito: quando a API falha, lista vazia evita confundir com dados reais.
+ * Para demos locais: `NEXT_PUBLIC_USE_MOCK_PRODUCTS=true` no .env.local
+ */
 function fallbackProducts(): ProductRow[] {
-  if (process.env.NODE_ENV === "production") {
-    return [];
+  if (process.env.NEXT_PUBLIC_USE_MOCK_PRODUCTS === "true") {
+    return ensureProductCodes([...mockProducts]);
   }
-  return ensureProductCodes([...mockProducts]);
+  return [];
 }
 
 async function requestProducts(path: string, init?: RequestInit) {
@@ -88,8 +91,11 @@ export async function getLocalProductBySlug(slug: string): Promise<ProductRow | 
     if (!response.ok || !data || Array.isArray(data)) return null;
     return ensureProductCodes([data as ProductRow])[0] ?? null;
   } catch {
-    const fallback = fallbackProducts();
-    return fallback.find((product) => product.slug === slug) ?? null;
+    if (process.env.NEXT_PUBLIC_USE_MOCK_PRODUCTS === "true") {
+      const fallback = fallbackProducts();
+      return fallback.find((product) => product.slug === slug) ?? null;
+    }
+    return null;
   }
 }
 
@@ -102,8 +108,11 @@ export async function getLocalProductById(id: string): Promise<ProductRow | null
     if (!response.ok || !data || Array.isArray(data)) return null;
     return ensureProductCodes([data as ProductRow])[0] ?? null;
   } catch {
-    const fallback = fallbackProducts();
-    return fallback.find((product) => product.id === id) ?? null;
+    if (process.env.NEXT_PUBLIC_USE_MOCK_PRODUCTS === "true") {
+      const fallback = fallbackProducts();
+      return fallback.find((product) => product.id === id) ?? null;
+    }
+    return null;
   }
 }
 
@@ -111,7 +120,7 @@ export type UpsertProductResult =
   | { ok: true; product: ProductRow }
   | { ok: false; error: string };
 
-function errorMessageFromApiBody(data: unknown, status: number): string {
+function errorMessageFromApiBody(data: unknown, status: number, verb = "completar"): string {
   if (
     data &&
     typeof data === "object" &&
@@ -120,7 +129,7 @@ function errorMessageFromApiBody(data: unknown, status: number): string {
   ) {
     return (data as { error: string }).error;
   }
-  return `Não foi possível salvar (erro ${status}).`;
+  return `Não foi possível ${verb} (erro ${status}).`;
 }
 
 export async function upsertLocalProduct(
@@ -135,7 +144,7 @@ export async function upsertLocalProduct(
   });
 
   if (!response.ok) {
-    return { ok: false, error: errorMessageFromApiBody(data, response.status) };
+    return { ok: false, error: errorMessageFromApiBody(data, response.status, "salvar") };
   }
 
   if (!data || Array.isArray(data)) {
@@ -151,4 +160,31 @@ export async function upsertLocalProduct(
     window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
   }
   return { ok: true, product: row };
+}
+
+export type DeleteProductResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteLocalProduct(id: string): Promise<DeleteProductResult> {
+  const response = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+
+  if (response.status === 204) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(PRODUCTS_UPDATED_EVENT));
+    }
+    return { ok: true };
+  }
+
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+  return {
+    ok: false,
+    error: errorMessageFromApiBody(data, response.status, "excluir"),
+  };
 }

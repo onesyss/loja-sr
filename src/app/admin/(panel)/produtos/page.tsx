@@ -9,8 +9,12 @@ import {
   PRODUCT_CATEGORY_ORDER,
   resolveProductCategory,
 } from "@/lib/product-category";
+import { IconPencil, IconTrash } from "@/components/AdminActionIcons";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { getDisplayImage } from "@/lib/product-images";
+import { systemAlert } from "@/lib/system-dialog";
 import {
+  deleteLocalProduct,
   getLocalProducts,
   PRODUCTS_UPDATED_EVENT,
 } from "@/lib/local-products";
@@ -18,10 +22,18 @@ import type { ProductCategory, ProductRow } from "@/types/database";
 
 type CategoryFilter = "todos" | ProductCategory;
 
+type DeleteDialogState =
+  | { mode: "one"; product: ProductRow }
+  | { mode: "bulk" }
+  | null;
+
 export default function AdminProdutosPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("todos");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
 
   useEffect(() => {
     const refreshProducts = async () => {
@@ -66,6 +78,38 @@ export default function AdminProdutosPage() {
 
   const closePanel = useCallback(() => setSelectedId(null), []);
 
+  const toggleChecked = useCallback((id: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleCheckAllFiltered = useCallback(() => {
+    const ids = filteredProducts.map((p) => p.id);
+    setCheckedIds((prev) => {
+      const allOn = ids.length > 0 && ids.every((id) => prev.has(id));
+      if (allOn) return new Set();
+      return new Set(ids);
+    });
+  }, [filteredProducts]);
+
+  const openDeleteOne = useCallback((p: ProductRow, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (deleteBusy) return;
+    setDeleteDialog({ mode: "one", product: p });
+  }, [deleteBusy]);
+
+  const openDeleteBulk = useCallback(() => {
+    if (deleteBusy || checkedIds.size === 0) return;
+    setDeleteDialog({ mode: "bulk" });
+  }, [deleteBusy, checkedIds.size]);
+
+  const allFilteredChecked =
+    filteredProducts.length > 0 && filteredProducts.every((p) => checkedIds.has(p.id));
+
   useEffect(() => {
     if (!selectedId) return;
     function onKey(e: KeyboardEvent) {
@@ -79,12 +123,27 @@ export default function AdminProdutosPage() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-stone-900">Produtos</h1>
-        <Link
-          href="/admin/produtos/novo"
-          className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
-        >
-          Novo produto
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {checkedIds.size > 0 ? (
+            <button
+              type="button"
+              disabled={deleteBusy}
+              onClick={openDeleteBulk}
+              title={`Excluir ${checkedIds.size} produto(s) selecionado(s)`}
+              aria-label={`Excluir ${checkedIds.size} produto(s) selecionado(s)`}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100 disabled:opacity-60"
+            >
+              <IconTrash className="h-5 w-5 shrink-0" />
+              <span className="tabular-nums">{checkedIds.size}</span>
+            </button>
+          ) : null}
+          <Link
+            href="/admin/produtos/novo"
+            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          >
+            Novo produto
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 max-w-md rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -113,22 +172,36 @@ export default function AdminProdutosPage() {
         </p>
       ) : (
         <div className="mt-8 overflow-x-auto rounded-xl border border-stone-200 bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-stone-200 bg-stone-50">
               <tr>
+                <th className="w-10 px-2 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredChecked}
+                    onChange={toggleCheckAllFiltered}
+                    disabled={deleteBusy || filteredProducts.length === 0}
+                    className="h-4 w-4 rounded border-stone-300"
+                    title="Selecionar todos desta lista"
+                    aria-label="Selecionar todos desta lista"
+                  />
+                </th>
+                <th className="w-14 px-2 py-3 text-center font-medium text-stone-700">N.º</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Código</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Nome</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Tipo</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Preço</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Estoque</th>
                 <th className="px-4 py-3 font-medium text-stone-700">Ativo</th>
-                <th className="px-4 py-3 font-medium text-stone-700" />
+                <th className="w-24 px-2 py-3 text-center font-medium text-stone-700">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((p) => {
+              {filteredProducts.map((p, rowIndex) => {
                 const cat = resolveProductCategory(p);
                 const isSelected = p.id === selectedId;
+                const numWidth = Math.max(2, String(filteredProducts.length).length);
+                const rowNum = String(rowIndex + 1).padStart(numWidth, "0");
                 return (
                   <tr
                     key={p.id}
@@ -147,6 +220,26 @@ export default function AdminProdutosPage() {
                         : "hover:bg-stone-50"
                     }`}
                   >
+                    <td
+                      className="px-2 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(p.id)}
+                        onChange={() => toggleChecked(p.id)}
+                        disabled={deleteBusy}
+                        className="h-4 w-4 rounded border-stone-300"
+                        aria-label={`Selecionar ${p.name}`}
+                      />
+                    </td>
+                    <td
+                      className="px-2 py-3 text-center font-medium tabular-nums text-stone-800"
+                      title={`Ordem na lista (id: ${p.id})`}
+                    >
+                      {rowNum}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-stone-700">
                       {p.code?.trim() ? p.code : "—"}
                     </td>
@@ -157,14 +250,32 @@ export default function AdminProdutosPage() {
                     <td className="px-4 py-3">{formatBRL(p.price_cents)}</td>
                     <td className="px-4 py-3">{p.stock}</td>
                     <td className="px-4 py-3">{p.active ? "Sim" : "Não"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/admin/produtos/${p.id}`}
-                        className="font-medium text-violet-600 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Editar
-                      </Link>
+                    <td
+                      className="px-2 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          disabled={deleteBusy}
+                          onClick={(e) => openDeleteOne(p, e)}
+                          title={`Excluir ${p.name}`}
+                          aria-label={`Excluir ${p.name}`}
+                          className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+                        >
+                          <IconTrash className="h-5 w-5" />
+                        </button>
+                        <Link
+                          href={`/admin/produtos/${p.id}`}
+                          title="Editar produto"
+                          aria-label={`Editar ${p.name}`}
+                          className="rounded-lg p-2 text-violet-600 transition hover:bg-violet-50"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <IconPencil className="h-5 w-5" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -298,6 +409,64 @@ export default function AdminProdutosPage() {
             </div>
           </aside>
         </>
+      ) : null}
+
+      {deleteDialog ? (
+        <ConfirmModal
+          key={deleteDialog.mode === "one" ? deleteDialog.product.id : "bulk"}
+          open
+          title={
+            deleteDialog.mode === "one" ? "Excluir produto?" : "Excluir produtos em lote?"
+          }
+          description={
+            deleteDialog.mode === "one"
+              ? `O produto «${deleteDialog.product.name}» será removido permanentemente da loja.\n\nEsta ação não pode ser anulada.`
+              : `${checkedIds.size} produto(s) selecionado(s) serão removidos permanentemente da loja.\n\nEsta ação não pode ser anulada.`
+          }
+          confirmText="Excluir"
+          cancelText="Cancelar"
+          confirmVariant="danger"
+          busy={deleteBusy}
+          onCancel={() => {
+            if (!deleteBusy) setDeleteDialog(null);
+          }}
+          onConfirm={async () => {
+            if (!deleteDialog) return;
+            setDeleteBusy(true);
+            try {
+              if (deleteDialog.mode === "one") {
+                const res = await deleteLocalProduct(deleteDialog.product.id);
+                if (!res.ok) {
+                  systemAlert(res.error);
+                  setDeleteDialog(null);
+                  return;
+                }
+                const removedId = deleteDialog.product.id;
+                setCheckedIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(removedId);
+                  return next;
+                });
+                setSelectedId((cur) => (cur === removedId ? null : cur));
+                setDeleteDialog(null);
+              } else {
+                const ids = [...checkedIds];
+                for (const id of ids) {
+                  const res = await deleteLocalProduct(id);
+                  if (!res.ok) {
+                    systemAlert(res.error);
+                    break;
+                  }
+                }
+                setCheckedIds(new Set());
+                setSelectedId(null);
+                setDeleteDialog(null);
+              }
+            } finally {
+              setDeleteBusy(false);
+            }
+          }}
+        />
       ) : null}
     </div>
   );

@@ -17,6 +17,12 @@ export type ProductCategory =
 
 export type ProfileRole = "customer" | "admin";
 
+/** Até 5 entradas: `url` + cores em que a foto aparece (`colors` vazio = todas). */
+export type ColorLinkedImageEntry = {
+  url: string;
+  colors: string[];
+};
+
 /** Preferências por usuário no painel (cada perfil salva o seu). */
 export type ProfilePreferences = {
   /** Observação só para quem está logado (lembrete interno). */
@@ -49,6 +55,8 @@ export interface ProductRow {
   available_sizes?: number[] | null;
   available_colors?: string[] | null;
   extra_image_urls?: string[] | null;
+  /** Galeria com fotos por cor (máx. 5 itens). */
+  color_linked_images?: ColorLinkedImageEntry[] | null;
   active: boolean;
   created_at: string;
   updated_at: string;

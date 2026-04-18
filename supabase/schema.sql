@@ -62,6 +62,7 @@ alter table public.products add column if not exists category text;
 alter table public.products add column if not exists available_sizes int[];
 alter table public.products add column if not exists available_colors text[];
 alter table public.products add column if not exists extra_image_urls text[];
+alter table public.products add column if not exists color_linked_images jsonb not null default '[]'::jsonb;
 
 do $$
 begin
