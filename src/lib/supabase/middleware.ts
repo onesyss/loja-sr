@@ -1,10 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabasePublishableKey } from "./env";
+import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
 
 /** Atualiza cookies da sessão (necessário para Auth funcionar em rotas do App Router). */
 export async function updateSession(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = getSupabaseUrl();
   const key = getSupabasePublishableKey();
   if (!url || !key) {
     return NextResponse.next({ request });
@@ -33,7 +33,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    /* Cookie/sessão corrompida ou token inválido — não bloquear o pedido */
+  }
 
   return supabaseResponse;
 }

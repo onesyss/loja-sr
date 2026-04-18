@@ -40,7 +40,19 @@ export async function POST(request: Request) {
       error: authErr,
     } = await supabase.auth.getUser();
     if (authErr || !user) {
-      return NextResponse.json({ error: "Faça login para enviar imagens." }, { status: 401 });
+      const raw = (authErr?.message ?? "").toLowerCase();
+      const jws =
+        raw.includes("jws") ||
+        raw.includes("invalid compact") ||
+        raw.includes("malformed");
+      return NextResponse.json(
+        {
+          error: jws
+            ? "Token de sessão inválido ou chave do Supabase vazia/errada. Remova linhas vazias de ANON/PUBLISHABLE no .env, reinicie o servidor, use Sair e entre de novo (ou limpe cookies deste site)."
+            : "Faça login para enviar imagens.",
+        },
+        { status: 401 },
+      );
     }
 
     let formData: FormData;
