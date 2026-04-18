@@ -2,18 +2,19 @@ export type OrderStatus = "pending" | "paid" | "cancelled" | "failed";
 export type ProductAudience = "feminino" | "infantil";
 export type ProductStyle = "casual" | "esportivo" | "promocao";
 
-/** Tipo de calçado (filtro da vitrine e cadastro). */
+/** Tipo de calçado / acessório (filtro da vitrine e cadastro). */
 export type ProductCategory =
+  | "salto_bloco_fino"
+  | "salto_bloco_grosso"
+  | "anabela"
+  | "plataforma"
+  | "papete"
   | "sandalia"
-  | "tenis"
-  | "sapato"
-  | "bota"
-  | "rasteirinha"
   | "chinelo"
-  | "mule"
-  | "sapatilha"
-  | "tamanco"
-  | "melissa";
+  | "rasteirinha"
+  | "tenis"
+  | "melissa"
+  | "bolsas";
 
 export type ProfileRole = "customer" | "admin";
 

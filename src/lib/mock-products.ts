@@ -43,7 +43,7 @@ export const mockProducts: ProductRow[] = [
     slug: "mocassim-casual-classico",
     description:
       "Estilo clássico com toque moderno. Ideal para trabalho e ocasiões sociais.",
-    category: "sapato",
+    category: "salto_bloco_fino",
     audience: "feminino",
     style: "casual",
     price_cents: 16990,
@@ -61,7 +61,7 @@ export const mockProducts: ProductRow[] = [
     slug: "bota-adventure-couro",
     description:
       "Bota resistente com excelente tração para trilhas leves e uso urbano.",
-    category: "bota",
+    category: "plataforma",
     price_cents: 25990,
     stock: 4,
     image_url: null,
@@ -93,7 +93,7 @@ export const mockProducts: ProductRow[] = [
     slug: "sapato-social-premium",
     description:
       "Visual sofisticado com estrutura reforçada para maior durabilidade.",
-    category: "sapato",
+    category: "salto_bloco_fino",
     price_cents: 21990,
     stock: 9,
     image_url: null,

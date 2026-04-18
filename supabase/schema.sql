@@ -43,7 +43,7 @@ create table if not exists public.products (
   image_url text,
   audience text check (audience in ('feminino', 'infantil')),
   style text check (style in ('casual', 'esportivo', 'promocao')),
-  category text check (category in ('sandalia','tenis','sapato','bota','rasteirinha','chinelo','mule','sapatilha','tamanco','melissa')),
+  category text check (category in ('salto_bloco_fino','salto_bloco_grosso','anabela','plataforma','papete','sandalia','chinelo','rasteirinha','tenis','melissa','bolsas')),
   available_sizes int[],
   available_colors text[],
   extra_image_urls text[],
@@ -85,7 +85,7 @@ do $$
 begin
   alter table public.products
     add constraint products_category_check
-    check (category in ('sandalia','tenis','sapato','bota','rasteirinha','chinelo','mule','sapatilha','tamanco','melissa'));
+    check (category in ('salto_bloco_fino','salto_bloco_grosso','anabela','plataforma','papete','sandalia','chinelo','rasteirinha','tenis','melissa','bolsas'));
 exception when duplicate_object then null;
 end $$;
 

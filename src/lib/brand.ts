@@ -5,7 +5,7 @@ export const BRAND = {
 
   /** wa.me sem + */
   whatsappE164: "5591985240488",
-  instagramUrl: "https://instagram.com/",
+  instagramUrl: "https://www.instagram.com/src_alcados/",
   address: "Rua Coronel Garcia, Centro — Igarape-Miri/PA",
 } as const;
 
