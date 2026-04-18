@@ -9,6 +9,7 @@ type ProductWritePayload = Omit<ProductRow, "id" | "created_at" | "updated_at">;
 function normalizePayload(payload: ProductWritePayload) {
   return {
     code: payload.code?.trim() || null,
+    brand: payload.brand?.trim() || null,
     name: payload.name.trim(),
     slug: payload.slug.trim(),
     description: payload.description?.trim() || null,
@@ -48,9 +49,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("products")
-    .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
-    )
+    .select("*")
     .eq("id", id)
     .maybeSingle();
 
@@ -98,9 +97,7 @@ export async function PUT(
     .from("products")
     .update(payload)
     .eq("id", id)
-    .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
-    )
+    .select("*")
     .maybeSingle();
 
   if (error) {

@@ -121,6 +121,7 @@ export function ProductForm({ initial }: Props) {
   const router = useRouter();
   const editing = Boolean(initial);
   const [code, setCode] = useState(initial?.code ?? "");
+  const [brand, setBrand] = useState(initial?.brand ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial));
@@ -356,6 +357,7 @@ export function ProductForm({ initial }: Props) {
     const saved = await upsertLocalProduct(
       {
         code: code.trim() || null,
+        brand: brand.trim() || null,
         name: trimmedName,
         slug: cleanSlug,
         description: description.trim() || null,
@@ -519,6 +521,19 @@ export function ProductForm({ initial }: Props) {
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-stone-700" htmlFor="brand">
+          Marca
+        </label>
+        <input
+          id="brand"
+          placeholder="Ex.: usada nos filtros da loja"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-stone-500">Opcional. Aparece como filtro na vitrine.</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-stone-700" htmlFor="name">

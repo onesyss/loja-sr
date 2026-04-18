@@ -6,6 +6,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-1",
     code: "SR-001",
+    brand: "SR",
     name: "Tênis Urbano Confort",
     slug: "tenis-urbano-confort",
     description:
@@ -21,6 +22,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-2",
     code: "SR-002",
+    brand: "SR",
     name: "Sandália Elegance Salto Médio",
     slug: "sandalia-elegance-salto-medio",
     description:
@@ -36,6 +38,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-3",
     code: "SR-003",
+    brand: "SR",
     name: "Mocassim Casual Clássico",
     slug: "mocassim-casual-classico",
     description:
@@ -53,6 +56,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-4",
     code: "SR-004",
+    brand: "SR",
     name: "Bota Adventure Couro",
     slug: "bota-adventure-couro",
     description:
@@ -68,6 +72,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-5",
     code: "SR-005",
+    brand: "SR",
     name: "Chinelo Slide Flex",
     slug: "chinelo-slide-flex",
     description:
@@ -83,6 +88,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-6",
     code: "SR-006",
+    brand: "SR",
     name: "Sapato Social Premium",
     slug: "sapato-social-premium",
     description:
@@ -98,6 +104,7 @@ export const mockProducts: ProductRow[] = [
   {
     id: "mock-7",
     code: "SR-007",
+    brand: "Melissa",
     name: "Sandália Melissa Flow",
     slug: "sandalia-melissa-flow",
     description:

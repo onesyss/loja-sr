@@ -45,6 +45,8 @@ export interface ProfileRow {
 export interface ProductRow {
   id: string;
   code?: string | null;
+  /** Marca para filtros na vitrine (opcional). */
+  brand?: string | null;
   name: string;
   slug: string;
   description: string | null;

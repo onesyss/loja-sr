@@ -74,10 +74,22 @@ export async function getLocalProducts(): Promise<ProductRow[]> {
       cache: "no-store",
     });
     if (!response.ok || !Array.isArray(data)) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          "[SR Calçados] GET /api/products não devolveu uma lista.",
+          "HTTP:",
+          response.status,
+          "Resposta:",
+          data,
+        );
+      }
       return fallbackProducts();
     }
     return ensureProductCodes(data as ProductRow[]);
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[SR Calçados] Erro ao pedir produtos à API:", e);
+    }
     return fallbackProducts();
   }
 }

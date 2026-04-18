@@ -16,11 +16,14 @@ import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
 import type { ProductCategory, ProductRow } from "@/types/database";
 
 type CategoryFilter = "todos" | ProductCategory;
+/** Padrão = ordem do catálogo (mais recentes). Ordenação por preço usa o valor de catálogo (price_cents). */
+type PriceSort = "padrao" | "baratos" | "caros";
 const PAGE_SIZE = 12;
 
 export default function HomePage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("todos");
+  const [priceSort, setPriceSort] = useState<PriceSort>("padrao");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
@@ -45,15 +48,24 @@ export default function HomePage() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      if (categoryFilter === "todos") return true;
-      return resolveProductCategory(product) === categoryFilter;
+    let list = products.filter((product) => {
+      if (categoryFilter !== "todos" && resolveProductCategory(product) !== categoryFilter) {
+        return false;
+      }
+      return true;
     });
-  }, [products, categoryFilter]);
+
+    if (priceSort === "baratos") {
+      list = [...list].sort((a, b) => a.price_cents - b.price_cents);
+    } else if (priceSort === "caros") {
+      list = [...list].sort((a, b) => b.price_cents - a.price_cents);
+    }
+    return list;
+  }, [products, categoryFilter, priceSort]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [categoryFilter, products.length]);
+  }, [categoryFilter, priceSort, products.length]);
 
   const visibleProducts = useMemo(
     () => filteredProducts.slice(0, visibleCount),
@@ -111,22 +123,43 @@ export default function HomePage() {
           Explore a vitrine, monte seu carrinho e nos envie sua compra. É muito rápido!
         </p>
       </div>
-      <div className="mb-6 rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
-        <label className="text-sm font-medium text-stone-700">
-          Tipo de calçado
-          <select
-            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-sm outline-none ring-violet-200 transition focus:ring"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-          >
-            <option value="todos">Todos</option>
-            {PRODUCT_CATEGORY_ORDER.map((key) => (
-              <option key={key} value={key}>
-                {PRODUCT_CATEGORY_LABELS[key]}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="mb-6 space-y-5 rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm">
+        <p className="text-sm font-semibold text-stone-800">Filtros</p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-stone-500" htmlFor="filtro-categoria">
+              Tipo de calçado
+            </label>
+            <select
+              id="filtro-categoria"
+              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm outline-none ring-violet-200 transition focus:ring"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+            >
+              <option value="todos">Todos</option>
+              {PRODUCT_CATEGORY_ORDER.map((key) => (
+                <option key={key} value={key}>
+                  {PRODUCT_CATEGORY_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-stone-500" htmlFor="filtro-preco">
+              Preço
+            </label>
+            <select
+              id="filtro-preco"
+              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm outline-none ring-violet-200 transition focus:ring"
+              value={priceSort}
+              onChange={(e) => setPriceSort(e.target.value as PriceSort)}
+            >
+              <option value="padrao">Padrão do catálogo</option>
+              <option value="baratos">Menor valor</option>
+              <option value="caros">Maior valor</option>
+            </select>
+          </div>
+        </div>
       </div>
       {!filteredProducts.length ? (
         <p className="text-stone-500">Nenhum produto cadastrado ainda.</p>

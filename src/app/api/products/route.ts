@@ -9,6 +9,7 @@ type ProductWritePayload = Omit<ProductRow, "id" | "created_at" | "updated_at">;
 function normalizePayload(payload: ProductWritePayload) {
   return {
     code: payload.code?.trim() || null,
+    brand: payload.brand?.trim() || null,
     name: payload.name.trim(),
     slug: payload.slug.trim(),
     description: payload.description?.trim() || null,
@@ -45,13 +46,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get("slug");
 
-  const baseSelect =
-    "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at";
+  /** `*` evita erro 500 se alguma coluna nova (ex.: brand) ainda não existir no projeto Supabase. */
+  const readSelect = "*";
 
   if (slug) {
     const { data, error } = await supabase
       .from("products")
-      .select(baseSelect)
+      .select(readSelect)
       .eq("slug", slug)
       .maybeSingle();
 
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("products")
-    .select(baseSelect)
+    .select(readSelect)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -110,9 +111,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("products")
     .insert(payload)
-    .select(
-      "id, code, name, slug, description, price_cents, discount_percent, max_installments, stock, image_url, audience, style, category, available_sizes, available_colors, extra_image_urls, color_linked_images, active, created_at, updated_at",
-    )
+    .select("*")
     .single();
 
   if (error) {
