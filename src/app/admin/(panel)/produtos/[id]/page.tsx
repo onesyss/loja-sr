@@ -45,9 +45,11 @@ export default function EditarProdutoPage() {
   }
 
   async function runDeleteConfirmed() {
+    const row = product;
+    if (!row) return;
     setDeleting(true);
     setDeleteError(null);
-    const res = await deleteLocalProduct(product.id);
+    const res = await deleteLocalProduct(row.id);
     setDeleting(false);
     setDeleteModalOpen(false);
     if (!res.ok) {

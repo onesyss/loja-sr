@@ -99,9 +99,7 @@ function getImageGroup(product: Pick<ProductRow, "name" | "description">) {
 }
 
 /** Normaliza JSON do banco para até 5 entradas `{ url, colors }`. */
-export function normalizeColorLinkedImages(
-  raw: ProductRow["color_linked_images"],
-): ColorLinkedImageEntry[] {
+export function normalizeColorLinkedImages(raw: unknown): ColorLinkedImageEntry[] {
   let data: unknown = raw;
   if (typeof raw === "string") {
     const s = raw.trim();
