@@ -8,7 +8,7 @@ export function StoreFooter() {
         <div className="flex flex-col gap-2">
           <BrandLogo
             href="/"
-            heightClassName="h-10 w-auto max-w-[140px] sm:h-11 sm:max-w-[160px]"
+            heightClassName="h-14 w-auto max-w-[200px] sm:h-16 sm:max-w-[240px]"
           />
           <p className="text-sm text-stone-500">{BRAND.address}</p>
         </div>

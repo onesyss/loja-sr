@@ -12,6 +12,8 @@ import {
   PRODUCT_CATEGORY_ORDER,
   resolveProductCategory,
 } from "@/lib/product-category";
+import banner02 from "@/app/img/banner02.png";
+import banner03 from "@/app/img/banner03.png";
 import { isHiddenFromStorefront } from "@/lib/storefront-exclude";
 import type { ProductCategory, ProductRow } from "@/types/database";
 
@@ -20,6 +22,28 @@ type BrandFilter = "todas" | string;
 /** Padrão = ordem do catálogo (mais recentes). Ordenação por preço usa o valor de catálogo (price_cents). */
 type PriceSort = "padrao" | "baratos" | "caros";
 const PAGE_SIZE = 12;
+const HERO_SLIDES = [
+  {
+    kicker: "Nova coleção",
+    title: "Estilo, conforto e variedade para seus passos",
+    text: "Modelos casuais e esportivos para o público feminino.",
+    backgroundImage:
+      "url('https://unsplash.com/photos/Zx76sbAndc0/download?force=true&w=1600')",
+  },
+  {
+    kicker: "Destaque especial",
+    title: "Linha Melissa com curadoria exclusiva",
+    text: "Também trabalhamos com outras marcas selecionadas para combinar com o seu estilo.",
+    backgroundImage:
+      `url('${banner02.src}')`,
+  },
+  {
+    kicker: "Marcas selecionadas",
+    title: "Qualidade em cada detalhe",
+    text: "Petite Jolie, Divalentini, Improviso, Sonhos dos Pés, Mariota, Vizzano, Via Uno, Renata Melo, Beira Rio, Dijean, Moleca e Modare.",
+    backgroundImage:
+      `url('${banner03.src}')`,  },
+] as const;
 
 export default function HomePage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -27,6 +51,7 @@ export default function HomePage() {
   const [brandFilter, setBrandFilter] = useState<BrandFilter>("todas");
   const [priceSort, setPriceSort] = useState<PriceSort>("padrao");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
 
   useEffect(() => {
     const refreshProducts = async () => {
@@ -112,25 +137,46 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [visibleCount, filteredProducts.length]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeroSlideIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
       <section
-        className="mb-8 overflow-hidden rounded-3xl border border-white/70 bg-cover bg-center shadow-[0_20px_60px_-35px_rgba(76,29,149,0.6)]"
+        className="mb-8 overflow-hidden rounded-3xl border border-white/70 bg-cover bg-center shadow-[0_20px_60px_-35px_rgba(76,29,149,0.6)] transition-[background-image] duration-700"
         style={{
-          backgroundImage:
-            "linear-gradient(90deg, rgba(76,29,149,.85), rgba(124,58,237,.55)), url('https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=1400&q=80')",
+          backgroundImage: `linear-gradient(110deg, rgba(88,28,135,.88), rgba(147,51,234,.62), rgba(216,180,254,.35)), ${
+            HERO_SLIDES[heroSlideIndex]?.backgroundImage
+          }`,
         }}
       >
-        <div className="px-6 py-12 text-white sm:px-10">
+        <div className="flex h-[280px] flex-col justify-center px-6 text-white sm:h-[320px] sm:px-10">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-100">
-            Nova coleção
+            {HERO_SLIDES[heroSlideIndex]?.kicker}
           </p>
           <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-            Estilo, conforto e variedade para seus passos
+            {HERO_SLIDES[heroSlideIndex]?.title}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-violet-50 sm:text-base">
-            Modelos casuais e esportivos para o público feminino e infantil.
+            {HERO_SLIDES[heroSlideIndex]?.text}
           </p>
+          <div className="mt-4 flex items-center gap-2" aria-label="Indicador do destaque">
+            {HERO_SLIDES.map((_, idx) => (
+              <button
+                key={`hero-dot-${idx}`}
+                type="button"
+                aria-label={`Ver destaque ${idx + 1}`}
+                onClick={() => setHeroSlideIndex(idx)}
+                className={`h-2.5 rounded-full transition ${
+                  idx === heroSlideIndex ? "w-6 bg-white" : "w-2.5 bg-white/50 hover:bg-white/70"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </section>
       <div className="mb-8 rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-sm">

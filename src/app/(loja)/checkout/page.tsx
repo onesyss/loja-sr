@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useCart } from "@/context/cart-context";
-import { BRAND, whatsappHref } from "@/lib/brand";
+import { BRAND, whatsappHref, whatsappMelissaHref } from "@/lib/brand";
 import { formatBRL } from "@/lib/money";
+import { resolveProductCategory } from "@/lib/product-category";
 import { getDisplayImage } from "@/lib/product-images";
 import { productRequiresBirthDate } from "@/lib/melissa-product";
 import { saveWhatsappOrder } from "@/lib/whatsapp-orders";
@@ -40,6 +41,9 @@ export default function CheckoutPage() {
   const safeDiscountCents = Math.min(discountCents, totalCents);
   const finalTotalCents = totalCents - safeDiscountCents;
   const requiresBirthDate = lines.some((line) => productRequiresBirthDate(line.product));
+  const hasMelissaInCart = lines.some(
+    (line) => resolveProductCategory(line.product) === "melissa",
+  );
   const formattedBirthDate = form.birth_date
     ? form.birth_date.split("-").reverse().join("/")
     : "Não informada";
@@ -104,7 +108,8 @@ export default function CheckoutPage() {
       whatsapp_message: message,
     });
 
-    const targetUrl = `${whatsappHref}?text=${encodeURIComponent(message)}`;
+    const whatsappTarget = hasMelissaInCart ? whatsappMelissaHref : whatsappHref;
+    const targetUrl = `${whatsappTarget}?text=${encodeURIComponent(message)}`;
     window.open(targetUrl, "_blank", "noopener,noreferrer");
     clear();
     setLoading(false);
@@ -181,7 +186,7 @@ export default function CheckoutPage() {
             onChange={(e) => setForm((f) => ({ ...f, birth_date: e.target.value }))}
           />
           {requiresBirthDate ? (
-            <p className="mt-1 text-xs text-stone-600">Obrigatório para pedidos com Melissa.</p>
+            <p className="mt-1 text-xs text-stone-600">Obrigatório para pedidos Melissa.</p>
           ) : null}
         </div>
         <div>
