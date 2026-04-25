@@ -46,6 +46,8 @@ create table if not exists public.products (
   category text check (category in ('salto_bloco_fino','salto_bloco_grosso','anabela','plataforma','papete','sandalia','chinelo','rasteirinha','tenis','melissa','bolsas')),
   available_sizes int[],
   available_colors text[],
+  promo_coupon_code text,
+  promo_coupon_percent numeric(5,2),
   extra_image_urls text[],
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -61,6 +63,8 @@ alter table public.products add column if not exists style text;
 alter table public.products add column if not exists category text;
 alter table public.products add column if not exists available_sizes int[];
 alter table public.products add column if not exists available_colors text[];
+alter table public.products add column if not exists promo_coupon_code text;
+alter table public.products add column if not exists promo_coupon_percent numeric(5,2);
 alter table public.products add column if not exists extra_image_urls text[];
 alter table public.products add column if not exists color_linked_images jsonb not null default '[]'::jsonb;
 alter table public.products add column if not exists brand text;

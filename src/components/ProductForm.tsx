@@ -140,6 +140,10 @@ export function ProductForm({ initial }: Props) {
   const [discountPercent, setDiscountPercent] = useState(
     String(initial?.discount_percent ?? 6),
   );
+  const [promoCouponCode, setPromoCouponCode] = useState(initial?.promo_coupon_code ?? "");
+  const [promoCouponPercent, setPromoCouponPercent] = useState(
+    initial?.promo_coupon_percent ? String(initial.promo_coupon_percent) : "",
+  );
   const [maxInstallments, setMaxInstallments] = useState(
     String(initial?.max_installments ?? 5),
   );
@@ -197,6 +201,20 @@ export function ProductForm({ initial }: Props) {
     const discountNum = Number.parseFloat(discountPercent);
     if (Number.isNaN(discountNum) || discountNum < 0 || discountNum > 90) {
       setError("Desconto inválido. Use um valor entre 0 e 90.");
+      setLoading(false);
+      return;
+    }
+    const promoCode = promoCouponCode.trim().toUpperCase();
+    const promoPercentNum = promoCouponPercent.trim()
+      ? Number.parseFloat(promoCouponPercent)
+      : NaN;
+    if (promoCode && (Number.isNaN(promoPercentNum) || promoPercentNum < 1 || promoPercentNum > 90)) {
+      setError("Cupom promocional inválido. Defina desconto entre 1 e 90%.");
+      setLoading(false);
+      return;
+    }
+    if (!promoCode && promoCouponPercent.trim()) {
+      setError("Preencha a palavra-chave do cupom para usar o desconto promocional.");
       setLoading(false);
       return;
     }
@@ -366,6 +384,8 @@ export function ProductForm({ initial }: Props) {
         style,
         price_cents,
         discount_percent: discountNum,
+        promo_coupon_code: promoCode || null,
+        promo_coupon_percent: promoCode ? promoPercentNum : null,
         max_installments: installmentsNum,
         stock: stockNum,
         available_sizes: uniqueSortedSizes.length > 0 ? uniqueSortedSizes : null,
@@ -898,6 +918,39 @@ export function ProductForm({ initial }: Props) {
             value={discountPercent}
             onChange={(e) => setDiscountPercent(e.target.value)}
           />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-stone-700" htmlFor="promo_coupon_code">
+            Cupom promocional (palavra-chave)
+          </label>
+          <input
+            id="promo_coupon_code"
+            placeholder="Ex.: MELISSA10"
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 uppercase"
+            value={promoCouponCode}
+            onChange={(e) => setPromoCouponCode(e.target.value.toUpperCase())}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-stone-700" htmlFor="promo_coupon_percent">
+            Desconto do cupom (%)
+          </label>
+          <input
+            id="promo_coupon_percent"
+            type="number"
+            min={1}
+            max={90}
+            step={0.1}
+            placeholder="Ex.: 10"
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+            value={promoCouponPercent}
+            onChange={(e) => setPromoCouponPercent(e.target.value)}
+          />
+          <p className="mt-1 text-xs text-stone-500">
+            Opcional. Se preencher, este cupom fica disponível no checkout para este produto.
+          </p>
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">

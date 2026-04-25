@@ -10,6 +10,13 @@ function normalizePayload(payload: ProductWritePayload) {
   return {
     code: payload.code?.trim() || null,
     brand: payload.brand?.trim() || null,
+    promo_coupon_code: payload.promo_coupon_code?.trim().toUpperCase() || null,
+    promo_coupon_percent:
+      typeof payload.promo_coupon_percent === "number" &&
+      payload.promo_coupon_percent >= 1 &&
+      payload.promo_coupon_percent <= 90
+        ? payload.promo_coupon_percent
+        : null,
     name: payload.name.trim(),
     slug: payload.slug.trim(),
     description: payload.description?.trim() || null,

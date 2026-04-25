@@ -16,6 +16,8 @@ alter table public.products add column if not exists style text;
 alter table public.products add column if not exists category text;
 alter table public.products add column if not exists available_sizes int[];
 alter table public.products add column if not exists available_colors text[];
+alter table public.products add column if not exists promo_coupon_code text;
+alter table public.products add column if not exists promo_coupon_percent numeric(5,2);
 alter table public.products add column if not exists extra_image_urls text[];
 alter table public.products add column if not exists color_linked_images jsonb not null default '[]'::jsonb;
 alter table public.products add column if not exists brand text;

@@ -48,6 +48,10 @@ export interface ProductRow {
   code?: string | null;
   /** Marca para filtros na vitrine (opcional). */
   brand?: string | null;
+  /** Palavra-chave de cupom promocional do produto (opcional). */
+  promo_coupon_code?: string | null;
+  /** Percentual de desconto do cupom promocional (1..90). */
+  promo_coupon_percent?: number | null;
   name: string;
   slug: string;
   description: string | null;

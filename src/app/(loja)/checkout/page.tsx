@@ -13,6 +13,12 @@ const COUPONS: Record<string, { type: "percent" | "fixed"; value: number }> = {
   BEMVINDO10: { type: "percent", value: 10 },
   SR20: { type: "fixed", value: 2000 },
 };
+const CREDIT_FEE_PERCENT_BY_INSTALLMENTS: Record<number, number> = {
+  4: 6.82,
+  5: 7.81,
+  6: 8.77,
+  7: 9.95,
+};
 
 export default function CheckoutPage() {
   const { lines, totalCents, clear } = useCart();
@@ -32,14 +38,55 @@ export default function CheckoutPage() {
     installments: "1",
   });
 
-  const couponRule = appliedCoupon ? COUPONS[appliedCoupon] : null;
+  const dynamicCoupons = lines.reduce<Record<string, { type: "percent"; value: number }>>(
+    (acc, line) => {
+      const rawCode = line.product.promo_coupon_code?.trim().toUpperCase();
+      const rawPercent = Number(line.product.promo_coupon_percent ?? NaN);
+      if (!rawCode) return acc;
+      if (!Number.isFinite(rawPercent) || rawPercent < 1 || rawPercent > 90) return acc;
+      const prev = acc[rawCode];
+      if (!prev || rawPercent > prev.value) {
+        acc[rawCode] = { type: "percent", value: rawPercent };
+      }
+      return acc;
+    },
+    {},
+  );
+  const availableCoupons: Record<string, { type: "percent" | "fixed"; value: number }> = {
+    ...COUPONS,
+    ...dynamicCoupons,
+  };
+  const normalizedAppliedCoupon = appliedCoupon?.trim().toUpperCase() ?? null;
+  const dynamicCouponRule = normalizedAppliedCoupon
+    ? dynamicCoupons[normalizedAppliedCoupon]
+    : undefined;
+  const staticCouponRule = normalizedAppliedCoupon
+    ? COUPONS[normalizedAppliedCoupon]
+    : undefined;
+  const couponRule = dynamicCouponRule ?? staticCouponRule ?? null;
+  const couponEligibleSubtotalCents = dynamicCouponRule
+    ? lines.reduce((sum, line) => {
+        const code = line.product.promo_coupon_code?.trim().toUpperCase();
+        if (code !== normalizedAppliedCoupon) return sum;
+        return sum + line.product.price_cents * line.quantity;
+      }, 0)
+    : totalCents;
   const discountCents = couponRule
     ? couponRule.type === "percent"
-      ? Math.round(totalCents * (couponRule.value / 100))
+      ? Math.round(couponEligibleSubtotalCents * (couponRule.value / 100))
       : couponRule.value
     : 0;
   const safeDiscountCents = Math.min(discountCents, totalCents);
   const finalTotalCents = totalCents - safeDiscountCents;
+  const installmentsCount = Number.parseInt(form.installments, 10) || 1;
+  const creditFeePercent =
+    form.payment_method === "credito"
+      ? (CREDIT_FEE_PERCENT_BY_INSTALLMENTS[installmentsCount] ?? 0)
+      : 0;
+  const creditFeeCents = Math.round(finalTotalCents * (creditFeePercent / 100));
+  const checkoutTotalCents = finalTotalCents + creditFeeCents;
+  const perInstallmentCents =
+    form.payment_method === "credito" ? Math.ceil(checkoutTotalCents / installmentsCount) : 0;
   const requiresBirthDate = lines.some((line) => productRequiresBirthDate(line.product));
   const hasMelissaInCart = lines.some(
     (line) => resolveProductCategory(line.product) === "melissa",
@@ -68,7 +115,9 @@ export default function CheckoutPage() {
     }
   const paymentLabel =
     form.payment_method === "credito"
-      ? `crédito em ${form.installments}x`
+      ? creditFeePercent > 0
+        ? `crédito em ${form.installments}x (taxa da máquina ${creditFeePercent.toFixed(2)}%)`
+        : `crédito em ${form.installments}x sem juros`
       : form.payment_method;
 
     const itemsText = lines
@@ -96,15 +145,16 @@ export default function CheckoutPage() {
       `*Itens*\n${itemsText}\n\n` +
       `*Cupom:* ${appliedCoupon ?? "Não aplicado"}\n` +
       `*Desconto:* ${formatBRL(safeDiscountCents)}\n` +
+      `*Taxa cartão:* ${formatBRL(creditFeeCents)}\n` +
       `*Forma de pagamento:* ${paymentLabel}\n` +
-      `*Total:* ${formatBRL(finalTotalCents)}\n\n` +
+      `*Total:* ${formatBRL(checkoutTotalCents)}\n\n` +
       `Pode me enviar as instruções para pagamento, por favor?`;
 
     await saveWhatsappOrder({
       customer_name: form.customer_name.trim(),
       customer_email: form.customer_email.trim(),
       customer_phone: form.customer_phone.trim() || null,
-      total_cents: finalTotalCents,
+      total_cents: checkoutTotalCents,
       whatsapp_message: message,
     });
 
@@ -119,7 +169,7 @@ export default function CheckoutPage() {
     <main className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-bold text-stone-900">Checkout</h1>
       <p className="mt-1 text-sm text-stone-500">
-        Total: <span className="font-semibold text-violet-600">{formatBRL(finalTotalCents)}</span> — pedido enviado direto no WhatsApp
+        Total: <span className="font-semibold text-violet-600">{formatBRL(checkoutTotalCents)}</span> — pedido enviado direto no WhatsApp
       </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
@@ -254,12 +304,17 @@ export default function CheckoutPage() {
               value={form.installments}
               onChange={(e) => setForm((f) => ({ ...f, installments: e.target.value }))}
             >
-              <option value="1">1x</option>
-              <option value="2">2x</option>
-              <option value="3">3x</option>
-              <option value="4">4x</option>
-              <option value="5">5x</option>
+              <option value="1">1x (sem juros)</option>
+              <option value="2">2x (sem juros)</option>
+              <option value="3">3x (sem juros)</option>
+              <option value="4">4x (+6,82%)</option>
+              <option value="5">5x (+7,81%)</option>
+              <option value="6">6x (+8,77%)</option>
+              <option value="7">7x (+9,95%)</option>
             </select>
+            <p className="mt-1 text-xs font-medium text-violet-700">
+              Parcela: {formatBRL(perInstallmentCents)} • Total no crédito: {formatBRL(checkoutTotalCents)}
+            </p>
           </div>
         ) : null}
         <div>
@@ -283,7 +338,7 @@ export default function CheckoutPage() {
                   setAppliedCoupon(null);
                   return;
                 }
-                if (!COUPONS[code]) {
+                if (!availableCoupons[code]) {
                   setError("Cupom inválido.");
                   setAppliedCoupon(null);
                   return;
@@ -335,8 +390,16 @@ export default function CheckoutPage() {
           <div className="mt-3 border-t border-stone-200 pt-3 text-xs text-stone-600">
             <p>Subtotal: {formatBRL(totalCents)}</p>
             <p>Desconto: {formatBRL(safeDiscountCents)}</p>
+            {form.payment_method === "credito" ? (
+              <p>Taxa cartão: {formatBRL(creditFeeCents)}</p>
+            ) : null}
+            {form.payment_method === "credito" ? (
+              <p>
+                Parcela ({installmentsCount}x): {formatBRL(perInstallmentCents)}
+              </p>
+            ) : null}
             <p className="font-semibold text-stone-800">
-              Total final: {formatBRL(finalTotalCents)}
+              Total final: {formatBRL(checkoutTotalCents)}
             </p>
           </div>
         </aside>
