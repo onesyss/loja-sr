@@ -113,12 +113,13 @@ export default function CheckoutPage() {
       setLoading(false);
       return;
     }
-  const paymentLabel =
-    form.payment_method === "credito"
-      ? creditFeePercent > 0
-        ? `crédito em ${form.installments}x (taxa da máquina ${creditFeePercent.toFixed(2)}%)`
-        : `crédito em ${form.installments}x sem juros`
-      : form.payment_method;
+    const paymentLabel =
+      form.payment_method === "credito"
+        ? creditFeePercent > 0
+          ? `crédito em ${form.installments}x (taxa da máquina ${creditFeePercent.toFixed(2)}%)`
+          : `crédito em ${form.installments}x sem juros`
+        : form.payment_method;
+    const targetStoreName = hasMelissaInCart ? "Loja SR - Melissa" : BRAND.name;
 
     const itemsText = lines
       .map((line, index) => {
@@ -132,7 +133,7 @@ export default function CheckoutPage() {
       .join("\n");
 
     const message =
-      `Olá, ${BRAND.name}! Gostaria de finalizar este pedido:\n\n` +
+      `Olá, ${targetStoreName}! Gostaria de finalizar este pedido:\n\n` +
       `*Cliente*\n` +
       `Nome: ${form.customer_name.trim()}\n` +
       `E-mail: ${form.customer_email.trim()}\n` +
